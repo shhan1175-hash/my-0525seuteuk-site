@@ -837,124 +837,124 @@ function App(){
               );
             })()}
 
-            {/* ══ 학생별 세특 대시보드 (2.2 신규) ══ */}
+            {/* ══ 학생별 세특 대시보드 — 가로 테이블 뷰 (PDF 2.2 스펙) ══ */}
             {tab==="setkdash"&&(()=>{
-              const selStu=ROSTER.find(s=>s.id===setkDashStu);
-              const store=setkStore[setkDashStu]||{};
+              /* 셀 직접 편집 핸들러 */
+              const updateCell=(sid,key,val)=>{
+                setSetkStore(prev=>{
+                  const n={...prev,[sid]:{...(prev[sid]||{}),[key]:val}};
+                  ls.set("setkStore",n);return n;
+                });
+              };
+              /* 셀 상태 뱃지 */
+              const cellBadge=(txt)=>{
+                if(!txt)return{label:"미입력",bg:cv.bg,col:cv.muted,bc:cv.border2};
+                if(txt.length<10)return{label:"입력중",bg:cv.peachLt,col:cv.peachDk,bc:cv.peachMd};
+                return{label:"완료",bg:cv.mintLt,col:cv.mint,bc:cv.mintMd};
+              };
+
               return(
-                <div style={{display:"grid",gridTemplateColumns:"200px 1fr",gap:"1.4rem",alignItems:"start"}}>
-                  {/* 좌측 학생 리스트 */}
-                  <div style={crd({padding:".8rem 0"})}>
-                    <div style={{fontWeight:700,fontSize:".88rem",color:cv.ink2,padding:"0 1rem .65rem",borderBottom:`1px solid ${cv.border}`,marginBottom:".3rem"}}>👤 학생 목록</div>
-                    <div style={{maxHeight:"calc(100vh - 200px)",overflowY:"auto"}}>
-                      {ROSTER.map(s=>{
-                        const st=setkStore[s.id]||{};
-                        const cnt=questions.filter(q=>st[q.id]).length+(st.final?1:0);
-                        const isS=setkDashStu===s.id;
-                        return(
-                          <div key={s.id} onClick={()=>setSetkDashStu(s.id)}
-                            style={{padding:".6rem 1rem",cursor:"pointer",background:isS?cv.lavLt:"transparent",borderLeft:`3px solid ${isS?cv.lav:"transparent"}`,transition:"all .12s"}}>
-                            <div style={{fontWeight:isS?800:600,fontSize:".87rem",color:isS?cv.lav:cv.ink}}>{s.name}</div>
-                            <div style={{fontSize:".72rem",color:cv.muted,marginTop:".1rem"}}>
-                              {s.id} &nbsp;·&nbsp;
-                              <span style={{color:cnt>0?cv.mint:cv.muted,fontWeight:cnt>0?700:400}}>{cnt}건 기록</span>
-                            </div>
-                          </div>
-                        );
-                      })}
+                <div>
+                  {/* 상단 타이틀 + 버튼 */}
+                  <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.3rem",flexWrap:"wrap",gap:".7rem"}}>
+                    <div>
+                      <div style={{fontWeight:800,fontSize:"1.3rem",color:cv.ink}}>📊 학생별 세특 통합 관리</div>
+                      <div style={{fontSize:".82rem",color:cv.muted,marginTop:".2rem"}}>세특 작성 탭에서 생성된 내용이 자동 반영됩니다 · 셀을 클릭하면 직접 편집 가능</div>
+                    </div>
+                    <div style={{display:"flex",gap:".55rem"}}>
+                      <button onClick={()=>{ls.set("setkStore",setkStore);alert("저장되었습니다.");}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".86rem",padding:".55rem 1.1rem"}}>💾 저장하기</button>
+                      <button onClick={exportSetkDashExcel} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),fontSize:".86rem",padding:".55rem 1.1rem"}}>📊 엑셀 내보내기</button>
                     </div>
                   </div>
 
-                  {/* 우측 세특 상세 */}
-                  <div>
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.2rem",flexWrap:"wrap",gap:".6rem"}}>
-                      <div>
-                        <div style={{fontWeight:800,fontSize:"1.2rem",color:cv.ink}}>{selStu?.name||"—"} <span style={{fontSize:".85rem",color:cv.muted,fontWeight:400}}>({selStu?.id})</span></div>
-                        <div style={{fontSize:".8rem",color:cv.muted,marginTop:".2rem"}}>세특 누적 현황 · 최종 기록 포함</div>
-                      </div>
-                      <div style={{display:"flex",gap:".5rem"}}>
-                        <button onClick={()=>{ls.set("setkStore",setkStore);alert("저장되었습니다.");}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1rem"}}>💾 저장하기</button>
-                        <button onClick={exportSetkDashExcel} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),fontSize:".84rem",padding:".5rem 1rem"}}>📊 엑셀 내보내기</button>
-                      </div>
-                    </div>
-
-                    {/* 활동별 세특 카드 */}
-                    <div style={{display:"flex",flexDirection:"column",gap:".85rem"}}>
-                      {questions.map((q,i)=>{
-                        const txt=store[q.id]||"";
-                        return(
-                          <div key={q.id} style={crd({background:txt?"#fff":"#fafbff"})}>
-                            <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:txt?".75rem":0}}>
-                              <div style={{display:"flex",alignItems:"center",gap:".55rem"}}>
-                                <span style={{...pill(txt?cv.lavLt:cv.bg,txt?cv.lav:cv.muted,txt?cv.lavMd:cv.border2)}}>활동 {i+1}</span>
-                                <span style={{fontWeight:700,fontSize:".9rem",color:txt?cv.ink:cv.muted}}>{q.title}</span>
-                              </div>
-                              {txt&&<span style={{fontSize:".74rem",color:cv.muted}}>{txt.length}자</span>}
-                            </div>
-                            {txt
-                              ?<>
-                                  <p style={{fontSize:".88rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-wrap",wordBreak:"keep-all"}}>{txt}</p>
-                                  <div style={{display:"flex",gap:".45rem",marginTop:".65rem"}}>
-                                    <button onClick={()=>navigator.clipboard.writeText(txt).then(()=>alert("복사!")).catch(()=>{})} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".76rem",padding:".28rem .7rem"}}>📋 복사</button>
-                                    <button onClick={()=>{const n={...setkStore,[setkDashStu]:{...store,[q.id]:""}};setSetkStore(n);ls.set("setkStore",n);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".76rem",padding:".28rem .7rem"}}>✕ 삭제</button>
-                                  </div>
-                                </>
-                              :<div style={{fontSize:".83rem",color:cv.muted,marginTop:".45rem",fontStyle:"italic"}}>— 미생성 · 세특 작성 탭에서 생성 후 자동 반영됩니다</div>
-                            }
-                          </div>
-                        );
-                      })}
-
-                      {/* 최종 종합 세특 */}
-                      <div style={crd({background:store.final?"#f2fff8":"#fafbff",border:`1.5px solid ${store.final?cv.mintMd:cv.border}`})}>
-                        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:store.final?".75rem":0}}>
-                          <div style={{display:"flex",alignItems:"center",gap:".55rem"}}>
-                            <span style={{...pill(store.final?cv.mintLt:cv.bg,store.final?cv.mint:cv.muted,store.final?cv.mintMd:cv.border2)}}>최종 종합</span>
-                            <span style={{fontWeight:800,fontSize:".9rem",color:store.final?cv.mint:cv.muted}}>최종 세특</span>
-                          </div>
-                          {store.final&&<span style={{fontSize:".74rem",color:cv.muted}}>{store.final.length}자</span>}
-                        </div>
-                        {store.final
-                          ?<>
-                              <p style={{fontSize:".88rem",lineHeight:1.9,color:cv.ink,whiteSpace:"pre-wrap",wordBreak:"keep-all"}}>{store.final}</p>
-                              <div style={{display:"flex",gap:".45rem",marginTop:".65rem"}}>
-                                <button onClick={()=>navigator.clipboard.writeText(store.final).then(()=>alert("복사!")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".76rem",padding:".28rem .7rem"}}>📋 복사</button>
-                                <button onClick={()=>{const n={...setkStore,[setkDashStu]:{...store,final:""}};setSetkStore(n);ls.set("setkStore",n);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".76rem",padding:".28rem .7rem"}}>✕ 삭제</button>
-                              </div>
-                            </>
-                          :<div style={{fontSize:".83rem",color:cv.muted,marginTop:".45rem",fontStyle:"italic"}}>— 미생성 · 세특 작성 탭에서 종합 세특 생성 후 자동 반영됩니다</div>
-                        }
-                      </div>
-                    </div>
-
-                    {/* 전체 학생 일람 표 */}
-                    <div style={{...crd(),marginTop:"1.4rem"}}>
-                      <div style={{fontWeight:700,fontSize:".92rem",color:cv.ink,marginBottom:".9rem"}}>📋 전체 학생 세특 현황 일람</div>
-                      <div style={{overflowX:"auto"}}>
-                        <table style={{width:"100%",borderCollapse:"collapse",fontSize:".8rem",minWidth:600}}>
-                          <thead><tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
-                            <th style={{padding:".5rem .7rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>학생</th>
-                            {questions.map((_,i)=>(<th key={i} style={{padding:".5rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:80}}>활동{i+1}</th>))}
-                            <th style={{padding:".5rem .7rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:80}}>최종</th>
-                          </tr></thead>
-                          <tbody>
-                            {ROSTER.map(s=>{
-                              const st2=setkStore[s.id]||{};
-                              return(<tr key={s.id} style={{background:s.id===setkDashStu?cv.lavLt:"#fff"}} onClick={()=>setSetkDashStu(s.id)}>
-                                <td style={{padding:".42rem .7rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700,cursor:"pointer",color:s.id===setkDashStu?cv.lav:cv.ink}}>{s.name}</td>
-                                {questions.map(q=>(<td key={q.id} style={{padding:".42rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                                  {st2[q.id]?<span style={pill(cv.lavLt,cv.lav,cv.lavMd)}>✓</span>:<span style={{color:cv.border2,fontSize:"1.1rem"}}>·</span>}
-                                </td>))}
-                                <td style={{padding:".42rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                                  {st2.final?<span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>✓</span>:<span style={{color:cv.border2,fontSize:"1.1rem"}}>·</span>}
-                                </td>
-                              </tr>);
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
+                  {/* 요약 배지 */}
+                  <div style={{display:"flex",gap:".45rem",flexWrap:"wrap",marginBottom:"1.1rem"}}>
+                    {[
+                      [`전체 ${ROSTER.length}명`,"#f0f4ff",cv.ink2,cv.border2],
+                      [`최종완료 ${ROSTER.filter(s=>(setkStore[s.id]||{}).final).length}명`,cv.mintLt,cv.mint,cv.mintMd],
+                      [`활동완료 ${ROSTER.filter(s=>questions.every(q=>(setkStore[s.id]||{})[q.id])).length}명`,cv.lavLt,cv.lav,cv.lavMd],
+                      [`미생성 ${ROSTER.filter(s=>!questions.some(q=>(setkStore[s.id]||{})[q.id])&&!(setkStore[s.id]||{}).final).length}명`,cv.roseLt,cv.rose,cv.roseMd],
+                    ].map(([label,bg,col,bc])=><span key={label} style={pill(bg,col,bc)}>{label}</span>)}
                   </div>
+
+                  {/* 메인 가로 테이블 */}
+                  <div style={{overflowX:"auto",borderRadius:13,border:`1.5px solid ${cv.border}`,boxShadow:"0 2px 14px rgba(124,92,191,.09)"}}>
+                    <table style={{width:"100%",borderCollapse:"collapse",fontSize:".83rem",minWidth:900}}>
+                      <thead>
+                        <tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
+                          <th style={{padding:".7rem 1rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:90,position:"sticky",left:0,background:"linear-gradient(90deg,#e8e0ff,#ddd6ff)",zIndex:2}}>학생</th>
+                          {questions.map((q,i)=>(
+                            <th key={i} style={{padding:".7rem .6rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,minWidth:180}}>
+                              <div>활동 {i+1}</div>
+                              <div style={{fontSize:".72rem",color:cv.muted,fontWeight:400,marginTop:".1rem"}}>{q.title}</div>
+                            </th>
+                          ))}
+                          <th style={{padding:".7rem .6rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:800,color:cv.mint,minWidth:200,background:"#e8fff4"}}>
+                            <div>최종 종합 세특</div>
+                            <div style={{fontSize:".72rem",color:cv.muted,fontWeight:400,marginTop:".1rem"}}>NEIS 업로드용</div>
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ROSTER.map((s,ri)=>{
+                          const store=setkStore[s.id]||{};
+                          const isHL=setkDashStu===s.id;
+                          return(
+                            <tr key={s.id} style={{background:isHL?cv.lavLt:ri%2===0?"#fff":"#fafbff",transition:"background .12s"}}>
+                              {/* 학생명 고정 열 */}
+                              <td style={{padding:".55rem 1rem",borderBottom:`1px solid ${cv.border}`,position:"sticky",left:0,background:isHL?cv.lavLt:ri%2===0?"#fff":"#fafbff",zIndex:1}}>
+                                <div style={{fontWeight:800,fontSize:".88rem",color:isHL?cv.lav:cv.ink,cursor:"pointer"}} onClick={()=>setSetkDashStu(s.id)}>{s.name}</div>
+                                <div style={{fontSize:".72rem",color:cv.muted}}>{s.id}</div>
+                              </td>
+                              {/* 활동별 세특 셀 */}
+                              {questions.map(q=>{
+                                const txt=store[q.id]||"";
+                                const {label,bg,col,bc}=cellBadge(txt);
+                                return(
+                                  <td key={q.id} style={{padding:".45rem .6rem",borderBottom:`1px solid ${cv.border}`,verticalAlign:"top"}}>
+                                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".3rem"}}>
+                                      <span style={pill(bg,col,bc)}>{label}</span>
+                                      {txt&&<span style={{fontSize:".68rem",color:cv.muted}}>{txt.length}자</span>}
+                                    </div>
+                                    <textarea
+                                      value={txt}
+                                      onChange={e=>updateCell(s.id,q.id,e.target.value)}
+                                      placeholder="미생성 — 세특 작성 탭에서 생성하거나 직접 입력"
+                                      style={{...inp({fontSize:".8rem",minHeight:72,resize:"vertical",lineHeight:1.7,padding:".45rem .6rem",background:txt?"#fff":"#f8f9fc",color:txt?cv.ink:cv.muted})}}
+                                    />
+                                  </td>
+                                );
+                              })}
+                              {/* 최종 세특 셀 */}
+                              {(()=>{
+                                const txt=store.final||"";
+                                const {label,bg,col,bc}=cellBadge(txt);
+                                return(
+                                  <td style={{padding:".45rem .6rem",borderBottom:`1px solid ${cv.border}`,verticalAlign:"top",background:isHL?"#edfff6":ri%2===0?"#f5fffa":"#efffF5"}}>
+                                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".3rem"}}>
+                                      <span style={pill(txt?cv.mintLt:cv.bg,txt?cv.mint:cv.muted,txt?cv.mintMd:cv.border2)}>{label}</span>
+                                      {txt&&<span style={{fontSize:".68rem",color:cv.muted}}>{txt.length}자</span>}
+                                    </div>
+                                    <textarea
+                                      value={txt}
+                                      onChange={e=>updateCell(s.id,"final",e.target.value)}
+                                      placeholder="미생성 — 세특 작성 탭에서 종합 생성하거나 직접 입력"
+                                      style={{...inp({fontSize:".8rem",minHeight:72,resize:"vertical",lineHeight:1.7,padding:".45rem .6rem",background:txt?"#fff":"#f8f9fc",color:txt?cv.ink:cv.muted})}}
+                                    />
+                                    {txt&&(
+                                      <button onClick={()=>navigator.clipboard.writeText(txt).then(()=>alert(`${s.name} 최종 세특 복사!`)).catch(()=>{})}
+                                        style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".72rem",padding:".22rem .65rem",marginTop:".3rem"}}>📋 복사</button>
+                                    )}
+                                  </td>
+                                );
+                              })()}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div style={{marginTop:".75rem",fontSize:".76rem",color:cv.muted}}>💡 각 셀을 직접 클릭하여 편집할 수 있습니다 · 편집 후 반드시 [저장하기]를 눌러주세요</div>
                 </div>
               );
             })()}
