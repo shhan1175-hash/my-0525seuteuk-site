@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1.0"/>
-<title>화법과 작문 × 확률과 통계 | 교과 융합수업 V3</title>
+<title>화법과 작문 × 확률과 통계 | 교과 융합수업 VPC V4</title>
 <link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet"/>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -23,12 +23,30 @@ body{font-family:'Pretendard',sans-serif;background:var(--bg);color:var(--ink);-
 @keyframes spin{to{transform:rotate(360deg)}}
 @keyframes fadeUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 input,select,textarea,button{font-family:'Pretendard',sans-serif;}
+
+/* 사이드바 호버 효과 */
+.sidebar-item{
+  display:flex;align-items:center;gap:.65rem;
+  padding:.7rem 1.3rem;cursor:pointer;font-size:.9rem;font-weight:700;
+  color:#8882a8;background:transparent;
+  border-left:3px solid transparent;line-height:1.3;
+  border-radius:0 10px 10px 0;margin:1px 8px 1px 0;
+  transition:all .18s;
+}
+.sidebar-item:hover{
+  background:#f3eeff;color:#5a3fa0;
+  font-weight:800;border-left-color:#c5b8f5;
+}
+.sidebar-item.active{
+  background:#ede9ff;color:#7c5cbf;
+  border-left-color:#7c5cbf;font-weight:800;
+}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState,useEffect,useRef}=React;
+const {useState,useEffect,useRef,useCallback}=React;
 
 /* ══════════════ 상수 ══════════════ */
 const ROSTER=[
@@ -46,26 +64,22 @@ const ROSTER=[
 ];
 
 const DEF_Q=[
-  {id:"q1",subject:"화법과 작문",title:"통계 보도문 읽기와 발표",maxLen:600,
-   poemImages:[], // [{dataUrl,label}]
+  {id:"q1",subject:"화법과 작문",title:"통계 보도문 읽기와 발표",maxLen:600,poemImages:[],
    question:"우리 반 학생 30명의 일주일 독서 시간을 조사한 결과, 평균 2.4시간, 표준편차 1.8시간이었습니다.",
    subQuestion:"① 자료의 특성을 해석하는 2~3문장의 발표 도입부\n② 독서 시간 부족 이유와 개선 방안 단락",
    placeholder:"① 우리 반 학생들의 일주일 평균 독서 시간은...",
    rubric:["통계 해석 정확성","발표 도입부 구성","주장의 논리성","표현의 명확성"]},
-  {id:"q2",subject:"확률과 통계",title:"경우의 수와 이야기 만들기",maxLen:500,
-   poemImages:[],
+  {id:"q2",subject:"확률과 통계",title:"경우의 수와 이야기 만들기",maxLen:500,poemImages:[],
    question:"5명(A,B,C,D,E)이 원형 탁자에 앉는 경우의 수를 구하고, 이야기 형식으로 설명하는 글을 작성하세요.",
    subQuestion:"- 수학적 계산 과정이 글 속에 자연스럽게 드러나야 합니다.",
    placeholder:"다섯 친구가 생일 파티에 모였다...",
    rubric:["경우의 수 정확성","서사 구성력","수학과 이야기의 통합","창의성"]},
-  {id:"q3",subject:"화법과 작문 + 확률과 통계",title:"설득 발표문",maxLen:700,
-   poemImages:[],
+  {id:"q3",subject:"화법과 작문 + 확률과 통계",title:"설득 발표문",maxLen:700,poemImages:[],
    question:"데이터를 활용하여 '자율학습 선택권 도입' 발표문(서론-본론-결론)을 작성하세요.",
    subQuestion:"• 자율학습 성적 향상: 62%\n• 강제 자율학습 만족도 '낮음': 58%",
    placeholder:"서론: 매일 저녁 교실에 앉아 있어야 하는...",
    rubric:["발표문 구조","통계 근거 활용","설득력","논리적 흐름"]},
-  {id:"q4",subject:"확률과 통계",title:"조건부 확률 스토리텔링",maxLen:500,
-   poemImages:[],
+  {id:"q4",subject:"확률과 통계",title:"조건부 확률 스토리텔링",maxLen:500,poemImages:[],
    question:"유병률 1%, 민감도 95%, 특이도 90%인 검사에서 양성 판정 시 실제 환자일 확률을 베이즈 정리로 계산하고, 의사-환자 대화 형식으로 작성하세요.",
    subQuestion:"",
    placeholder:"의사: 검사 결과가 양성으로 나왔습니다만...",
@@ -75,112 +89,102 @@ const DEF_Q=[
 const PERIODS=[1,2,3,4,5,6,7];
 const KOR_COMP=["비판적·창의적 사고 역량","자료·정보 활용 역량","의사소통 역량","공동체·대인관계 역량","문화 향유 역량","자기 성찰·계발 역량"];
 const MATH_COMP=["문제해결 역량","추론 역량","의사소통 역량","연결 역량","정보처리 역량"];
-const THEMES=["통계와 사회","확률과 의사결정","데이터 리터러시","수리적 글쓰기","논증과 통계"];
 const AI_ENGINES=["Claude","Gemini","ChatGPT"];
 
-/* ══════════════ 스타일 ══════════════ */
+const DEF_TEACHER_PROFILE={
+  t1Name:"",t1Subject:"",
+  t2Active:false,t2Name:"",t2Subject:"",
+};
+const DEF_GLOBAL_PROMPTS={q1:"",q2:"",q3:"",q4:""};
+
+/* ══════════════ 스타일 헬퍼 ══════════════ */
 const cv={lav:"#7c5cbf",lavLt:"#ede9ff",lavMd:"#c5b8f5",mint:"#2d7a5e",mintLt:"#e6f9f2",mintMd:"#a8e6cf",rose:"#b03060",roseLt:"#fff0f4",roseMd:"#f5b8c8",peachDk:"#c05c1a",peachLt:"#fff4ec",peachMd:"#ffcba4",skyLt:"#e8f4fd",skyMd:"#b3d9f7",ink:"#2d2840",ink2:"#4a4560",muted:"#8882a8",bg:"#f0f4ff",border:"#e2dcf5",border2:"#cec8ea"};
 const crd=(ex={})=>({background:"#fff",border:`1.5px solid ${cv.border}`,borderRadius:13,padding:"1.3rem",boxShadow:"0 2px 14px rgba(124,92,191,.09)",...ex});
-const btn=(bg,col="#fff",ex={})=>({background:bg,color:col,border:"none",borderRadius:8,padding:".55rem 1.1rem",fontWeight:700,cursor:"pointer",fontSize:".85rem",fontFamily:"inherit",...ex});
+const btn=(bg,col="#fff",ex={})=>({background:bg,color:col,border:"none",borderRadius:8,padding:".55rem 1.1rem",fontWeight:700,cursor:"pointer",fontSize:".85rem",fontFamily:"inherit",transition:"filter .15s",...ex});
 const pill=(bg,col,bc)=>({background:bg,color:col,border:`1px solid ${bc}`,borderRadius:20,padding:".22rem .7rem",fontSize:".74rem",fontWeight:700,display:"inline-flex",alignItems:"center",whiteSpace:"nowrap"});
 const inp=(ex={})=>({width:"100%",border:`1.5px solid ${cv.border2}`,borderRadius:8,padding:".65rem .9rem",fontSize:".92rem",outline:"none",fontFamily:"inherit",background:"#fff",...ex});
 const ls={get:(k,d)=>{try{const v=localStorage.getItem(k);return v!=null?JSON.parse(v):d;}catch{return d;}},set:(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}}};
 const mkAct=()=>({korComp:[],mathComp:[],obs1:"",obs2:"",prompt:"",bytes:500,selected:true,savedDraft:""});
 
-/* ══════════════════════════════════════════════════
-   멀티 AI 엔진 호출 (Claude / Gemini / ChatGPT)
-   ─ V3 신규: Gemini는 URL에 ?key= 파라미터 사용
-══════════════════════════════════════════════════ */
-async function callAI(prompt, engine, keys) {
-  // ── Claude (Anthropic) ──
-  if (engine === "Claude") {
-    const key = keys.claude;
-    if (!key) throw new Error("Claude API 키가 없습니다.");
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": key,                          // Claude 전용 헤더
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-20250514",
-        max_tokens: 1200,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    const d = await res.json();
-    if (d.error) throw new Error(d.error.message);
-    return (d.content || []).map(x => x.text || "").join("") || "생성 결과 없음";
+/* ══════════════════════════════════════════
+   멀티 AI 엔진 호출
+   Claude  → x-api-key 헤더
+   Gemini  → URL ?key= 파라미터 (x-api-key 불가)
+   ChatGPT → Authorization: Bearer 헤더
+   GPT-4o Vision (OCR) → OpenAI images 엔드포인트
+══════════════════════════════════════════ */
+async function callAI(prompt,engine,keys){
+  if(engine==="Claude"){
+    const key=keys.claude;if(!key)throw new Error("Claude API 키가 없습니다.");
+    const res=await fetch("https://api.anthropic.com/v1/messages",{method:"POST",
+      headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1200,messages:[{role:"user",content:prompt}]})});
+    const d=await res.json();if(d.error)throw new Error(d.error.message);
+    return(d.content||[]).map(x=>x.text||"").join("")||"생성 결과 없음";
   }
-
-  // ── Gemini (Google) ──
-  // Gemini는 x-api-key 헤더 대신 URL 쿼리 파라미터 ?key= 를 사용합니다.
-  if (engine === "Gemini") {
-    const key = keys.gemini;
-    if (!key) throw new Error("Gemini API 키가 없습니다.");
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },  // x-api-key 헤더 불필요
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { maxOutputTokens: 1200 },
-      }),
-    });
-    const d = await res.json();
-    if (d.error) throw new Error(d.error.message || JSON.stringify(d.error));
-    return d.candidates?.[0]?.content?.parts?.[0]?.text || "생성 결과 없음";
+  if(engine==="Gemini"){
+    const key=keys.gemini;if(!key)throw new Error("Gemini API 키가 없습니다.");
+    const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`;
+    const res=await fetch(url,{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({contents:[{parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:1200}})});
+    const d=await res.json();if(d.error)throw new Error(d.error.message||JSON.stringify(d.error));
+    return d.candidates?.[0]?.content?.parts?.[0]?.text||"생성 결과 없음";
   }
-
-  // ── ChatGPT (OpenAI) ──
-  if (engine === "ChatGPT") {
-    const key = keys.openai;
-    if (!key) throw new Error("OpenAI API 키가 없습니다.");
-    const res = await fetch("https://api.openai.com/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${key}`,            // OpenAI는 Bearer 토큰
-      },
-      body: JSON.stringify({
-        model: "gpt-4o",
-        max_tokens: 1200,
-        messages: [{ role: "user", content: prompt }],
-      }),
-    });
-    const d = await res.json();
-    if (d.error) throw new Error(d.error.message);
-    return d.choices?.[0]?.message?.content || "생성 결과 없음";
+  if(engine==="ChatGPT"){
+    const key=keys.openai;if(!key)throw new Error("OpenAI API 키가 없습니다.");
+    const res=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":`Bearer ${key}`},
+      body:JSON.stringify({model:"gpt-4o",max_tokens:1200,messages:[{role:"user",content:prompt}]})});
+    const d=await res.json();if(d.error)throw new Error(d.error.message);
+    return d.choices?.[0]?.message?.content||"생성 결과 없음";
   }
+  throw new Error("알 수 없는 AI 엔진");
+}
 
-  throw new Error("알 수 없는 AI 엔진입니다.");
+/* GPT-4o Vision OCR — OpenAI Vision API */
+async function runGPTVisionOCR(imgDataUrl,openaiKey){
+  if(!openaiKey)throw new Error("OCR에 OpenAI(GPT-4o) API 키가 필요합니다. 환경설정에서 입력해 주세요.");
+  const b64=imgDataUrl.split(",")[1];
+  const mt=imgDataUrl.match(/data:(image\/\w+);/)?.[1]||"image/jpeg";
+  const res=await fetch("https://api.openai.com/v1/chat/completions",{method:"POST",
+    headers:{"Content-Type":"application/json","Authorization":`Bearer ${openaiKey}`},
+    body:JSON.stringify({model:"gpt-4o",max_tokens:1000,messages:[{role:"user",content:[
+      {type:"image_url",image_url:{url:`data:${mt};base64,${b64}`}},
+      {type:"text",text:"이 이미지에 있는 텍스트를 정확하게 추출해 주세요. 시나 지문이라면 원문 그대로 옮겨 주세요. 수식·기호도 포함하여 텍스트만 출력하고 다른 설명은 하지 마세요."}
+    ]}]})});
+  const d=await res.json();if(d.error)throw new Error(d.error.message);
+  return d.choices?.[0]?.message?.content||"";
 }
 
 /* ══════════════ 메인 앱 ══════════════ */
 function App(){
-  /* 학생 */
+  /* 학생 상태 */
   const [page,setPage]=useState("login");
   const [stuId,setStuId]=useState("");
   const [stuName,setStuName]=useState("");
   const [stuErr,setStuErr]=useState("");
-  const [answers,setAnswers]=useState({});   // {qId:{text,imgData,imgText,poemSel}}
+  const [answers,setAnswers]=useState({});
   const [curQ,setCurQ]=useState(0);
   const [submitted,setSubmitted]=useState(null);
-  /* 교사 */
+  /* OCR 인터록: {qId: bool} — OCR 완료 후 저장해야 다음 활성화 */
+  const [ocrDone,setOcrDone]=useState({});
+  const [imgSaved,setImgSaved]=useState({});
+  /* 교사 공통 */
   const [teacherPw,setTeacherPw]=useState(()=>ls.get("pw","1234"));
   const [pwInput,setPwInput]=useState("");
   const [pwShake,setPwShake]=useState(false);
-  const [tab,setTab]=useState("dashboard");
+  const [tab,setTab]=useState("home");
   const [submissions,setSubmissions]=useState(()=>ls.get("subs",[]));
-  // API 키 모음 + 선택 엔진
   const [apiKeys,setApiKeys]=useState(()=>ls.get("apiKeys",{claude:"",gemini:"",openai:""}));
-  const [aiEngine,setAiEngine]=useState(()=>ls.get("aiEngine","Claude"));
+  const [aiEngine,setAiEngine]=useState(()=>ls.get("aiEngine","ChatGPT"));
   const [questions,setQuestions]=useState(()=>ls.get("qs",DEF_Q));
   const [expandedQ,setExpandedQ]=useState(null);
   const [savedQ,setSavedQ]=useState(false);
   const [newPw,setNewPw]=useState("");
+  /* 교사 프로필 (전역) */
+  const [teacherProfile,setTeacherProfile]=useState(()=>ls.get("teacherProfile",DEF_TEACHER_PROFILE));
+  /* 활동별 전역 프롬프트 */
+  const [globalPrompts,setGlobalPrompts]=useState(()=>ls.get("globalPrompts",{q1:"",q2:"",q3:"",q4:""}));
   /* 출석 */
   const [att,setAtt]=useState(()=>ls.get("att",{}));
   const [attNote,setAttNote]=useState(()=>ls.get("attNote",{}));
@@ -190,12 +194,12 @@ function App(){
   const [driveUrls,setDriveUrls]=useState(()=>ls.get("driveUrls",{}));
   const [rootUrl,setRootUrl]=useState(()=>ls.get("rootUrl",""));
   const [driveSaved,setDriveSaved]=useState(false);
-  /* 교세특 (활동지 기반) */
+  /* 교세특 */
   const [seteuk,setSeteuk]=useState(null);
   const [generating,setGenerating]=useState(false);
   const [genProg,setGenProg]=useState(0);
   const [tNote,setTNote]=useState("");
-  /* 세특 작성 메뉴 */
+  /* 세특 작성 */
   const [setkStu,setSetkStu]=useState("");
   const [setkTheme,setSetkTheme]=useState("");
   const [setkExtras,setSetkExtras]=useState(()=>DEF_Q.map(()=>mkAct()));
@@ -205,15 +209,16 @@ function App(){
   const [setkPartGen,setSetkPartGen]=useState({});
   const [rightActIdx,setRightActIdx]=useState(null);
   const [charLimit,setCharLimit]=useState(500);
-  /* OCR 상태 */
+  /* OCR 로딩 */
   const [ocrLoading,setOcrLoading]=useState({});
 
-  /* questions 개수 변경 시 setkExtras 동기화 */
-  useEffect(()=>{
-    setSetkExtras(prev=>questions.map((_,i)=>prev[i]||mkAct()));
-  },[questions.length]);
+  useEffect(()=>{setSetkExtras(prev=>questions.map((_,i)=>prev[i]||mkAct()));},[questions.length]);
 
-  /* ── 출석 ── */
+  /* 교사 관찰란 자동 매핑 레이블 */
+  const obs1Label=()=>teacherProfile.t1Name?`${teacherProfile.t1Name} 교사(${teacherProfile.t1Subject||"담당 과목"})의 관찰`:"교사 1 관찰 평가";
+  const obs2Label=()=>teacherProfile.t2Active&&teacherProfile.t2Name?`${teacherProfile.t2Name} 교사(${teacherProfile.t2Subject||"담당 과목"})의 관찰`:"교사 2 관찰 평가";
+
+  /* 출석 */
   const toggleAtt=(id,p)=>setAtt(prev=>{const cur=(prev[id]||{})[p]||"";return{...prev,[id]:{...(prev[id]||{}),[p]:cur==="/"?"":"/"}}; });
   const setAllPresent=()=>setAtt({});
   const saveAtt=()=>{ls.set("att",att);ls.set("attNote",attNote);setAttSaved(true);setTimeout(()=>setAttSaved(false),2200);};
@@ -227,133 +232,105 @@ function App(){
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));a.download=`출석현황_${today.replace(/\./g,"")}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);
   };
 
-  /* ── 드라이브 자동 매칭 ── */
+  /* 드라이브 자동 매칭 */
   const autoMatch=()=>{
     if(!rootUrl.trim()){alert("상위 폴더 URL을 먼저 입력하세요.");return;}
     const base=rootUrl.trim().replace(/\/+$/,"");
-    const n={...driveUrls};
-    ROSTER.forEach(s=>{if(!n[s.id])n[s.id]=`${base}/${encodeURIComponent(s.name)}`;});
-    setDriveUrls(n);ls.set("driveUrls",n);
-    alert("학생 이름 기준으로 폴더 URL이 자동 연결되었습니다.");
+    const n={...driveUrls};ROSTER.forEach(s=>{if(!n[s.id])n[s.id]=`${base}/${encodeURIComponent(s.name)}`;});
+    setDriveUrls(n);ls.set("driveUrls",n);alert("자동 매칭 완료!");
   };
 
-  /* ── 제출 상태 (V3: 활동별 세분화) ── */
-  // 학생의 특정 문항 제출 여부
-  const isActSubmitted=(stuId,qId)=>{
-    const sub=submissions.find(s=>s.stuId===stuId);
-    return !!(sub?.answers[qId]?.text?.trim());
-  };
-  // 활동별 원격 리셋
+  /* V3 활동별 제출 판정 */
+  const isActSubmitted=(stuId,qId)=>{const sub=submissions.find(s=>s.stuId===stuId);return !!(sub?.answers[qId]?.text?.trim());};
   const resetAct=(stuId,qId)=>{
-    if(!window.confirm("이 학생의 해당 활동 답변을 초기화(반려)하시겠습니까?\n학생이 다시 작성할 수 있게 됩니다."))return;
-    setSubmissions(prev=>{
-      const next=prev.map(s=>{
-        if(s.stuId!==stuId)return s;
-        const newAnswers={...s.answers};
-        delete newAnswers[qId];
-        return{...s,answers:newAnswers};
-      });
-      ls.set("subs",next);
-      return next;
-    });
+    if(!window.confirm("해당 학생의 활동 답변을 초기화(반려)하시겠습니까?\n학생이 다시 작성할 수 있게 됩니다."))return;
+    setSubmissions(prev=>{const next=prev.map(s=>{if(s.stuId!==stuId)return s;const na={...s.answers};delete na[qId];return{...s,answers:na};});ls.set("subs",next);return next;});
   };
-  const wsAllSubmitted=(stuId)=>questions.every(q=>isActSubmitted(stuId,q.id));
-  const getStatus=s=>{
-    const allActs=wsAllSubmitted(s.id);
-    const dr=!!driveSub[s.id];
-    if(allActs&&dr)return"complete";
-    if(allActs)return"ws";
-    if(dr)return"dr";
-    return"none";
-  };
+  const wsAllSubmitted=stuId=>questions.every(q=>isActSubmitted(stuId,q.id));
+  const getStatus=s=>{const a=wsAllSubmitted(s.id),dr=!!driveSub[s.id];if(a&&dr)return"complete";if(a)return"ws";if(dr)return"dr";return"none";};
   const stLabel={"complete":"✅ 완료","ws":"📝 활동지만","dr":"📁 드라이브만","none":"❌ 미제출"};
   const stC={"complete":[cv.mintLt,cv.mint,cv.mintMd],"ws":[cv.lavLt,cv.lav,cv.lavMd],"dr":["#e0f9ec","#1a7a46","#7ad9a0"],"none":[cv.roseLt,cv.rose,cv.roseMd]};
 
-  /* ── 학생 로그인 ── */
+  /* 학생 로그인 */
   const loginStudent=()=>{
     if(!/^\d{4}$/.test(stuId.trim())){setStuErr("4자리 학번을 입력해 주세요");return;}
     if(!stuName.trim()){setStuErr("성명을 입력해 주세요");return;}
     if(!ROSTER.find(r=>r.id===stuId.trim()&&r.name===stuName.trim())){setStuErr("학번 또는 성명이 일치하지 않습니다");return;}
-    // 기존 제출 데이터 로드
     const existing=submissions.find(s=>s.stuId===stuId.trim());
     if(existing)setAnswers(existing.answers||{});
     setStuErr("");setPage("worksheet");setCurQ(0);
   };
 
-  /* ── 교사 키패드 ── */
+  /* 교사 키패드 */
   const handleNumpad=n=>{
     if(pwInput.length>=6)return;
     const next=pwInput+n;setPwInput(next);
     if(next.length===teacherPw.length){
-      setTimeout(()=>{
-        if(next===teacherPw){setPage("teacher");setPwInput("");}
-        else{setPwShake(true);setTimeout(()=>{setPwShake(false);setPwInput("");},600);}
-      },150);
+      setTimeout(()=>{if(next===teacherPw){setPage("teacher");setPwInput("");}else{setPwShake(true);setTimeout(()=>{setPwShake(false);setPwInput("");},600);}},150);
     }
   };
 
-  /* ── 활동지 제출/저장 ── */
+  /* 활동지 제출 */
   const submitWS=()=>{
     const bad=questions.filter(q=>(answers[q.id]?.text||"").trim().length<20);
     if(bad.length){alert("답변이 너무 짧습니다 (최소 20자):\n"+bad.map(q=>q.title).join(", "));return;}
     const data={stuId,stuName,answers,at:new Date().toLocaleString("ko-KR")};
-    // 기존 제출 업데이트 or 신규 추가
-    setSubmissions(prev=>{
-      const idx=prev.findIndex(s=>s.stuId===stuId);
-      let next;
-      if(idx>=0){next=[...prev];next[idx]=data;}
-      else{next=[...prev,data];}
-      ls.set("subs",next);
-      return next;
-    });
-    setSubmitted(data);
-    setPage("review");
+    setSubmissions(prev=>{const idx=prev.findIndex(s=>s.stuId===stuId);let next;if(idx>=0){next=[...prev];next[idx]=data;}else{next=[...prev,data];}ls.set("subs",next);return next;});
+    setSubmitted(data);setPage("review");
   };
 
-  /* ── AI 키 확인 및 프롬프트 전송 ── */
+  /* AI 키 확인 */
   const ensureKey=()=>{
     const keys={...apiKeys};
-    const eng=aiEngine;
-    const field=eng==="Claude"?"claude":eng==="Gemini"?"gemini":"openai";
-    if(!keys[field]){
-      const k=prompt(`${eng} API 키를 입력하세요.`);
-      if(!k)return null;
-      keys[field]=k;
-      setApiKeys(keys);ls.set("apiKeys",keys);
-    }
+    const field=aiEngine==="Claude"?"claude":aiEngine==="Gemini"?"gemini":"openai";
+    if(!keys[field]){const k=prompt(`${aiEngine} API 키를 입력하세요.`);if(!k)return null;keys[field]=k;setApiKeys(keys);ls.set("apiKeys",keys);}
     return keys;
   };
 
-  /* ── 활동지 교세특 생성 ── */
+  /* 활동지 교세특 생성 */
   const generate=async()=>{
     const keys=ensureKey();if(!keys)return;
     setGenerating(true);setSeteuk(null);setGenProg(0);
     const timer=setInterval(()=>setGenProg(p=>Math.min(p+Math.random()*9,88)),400);
     try{
       const text=await callAI(
-        `고등학교 교사로서 학생의 교과 융합수업 활동지를 바탕으로 교세특을 500자 내외로 작성해주세요.\n`+
-        `학생: ${submitted.stuName} (학번: ${submitted.stuId})\n\n`+
+        `고등학교 교사로서 학생의 교과 융합수업 활동지를 바탕으로 교세특을 500자 내외로 작성해주세요.\n학생: ${submitted.stuName} (학번: ${submitted.stuId})\n\n`+
         questions.map(q=>`[${q.title}]\n문항: ${q.question}\n답변: ${submitted.answers[q.id]?.text||"(미작성)"}`).join("\n\n")+
         (tNote?`\n\n[교사 관찰]\n${tNote}`:"")+
         `\n\n지침: 3인칭, "해당 학생" 표현, 교세특 내용만 작성`,
-        aiEngine, keys
+        aiEngine,keys
       );
       clearInterval(timer);setGenProg(100);
       setTimeout(()=>{setSeteuk(text);setGenerating(false);setPage("result");},450);
     }catch(e){clearInterval(timer);setGenerating(false);setSeteuk("오류: "+e.message);setPage("result");}
   };
 
-  /* ── 세특 학생 선택 ── */
+  /* 세특 학생 선택 */
   const onSetkStuChange=id=>{
     setSetkStu(id);setSetkPartResult({});setSetkResult(null);setRightActIdx(null);
     if(!id)return;
-    const sub=submissions.find(s=>s.stuId===id);
-    if(!sub)return;
+    const sub=submissions.find(s=>s.stuId===id);if(!sub)return;
     setSetkExtras(prev=>prev.map((act,i)=>({...act,content:sub.answers[questions[i]?.id]?.text||""})));
   };
   const getSetkSub=()=>submissions.find(s=>s.stuId===setkStu)||null;
 
-  /* ── 활동별 세특 생성 ── */
+  /* 세특 초안 생성 — 전역 프롬프트 합성 */
+  const buildSetkPrompt=(ai,ext,q,stuAns,stuName)=>{
+    const qKey=`q${ai+1}`;
+    const globalP=globalPrompts[qKey]||"";
+    const obs1Txt=ext.obs1?`${obs1Label()}: ${ext.obs1}`:"";
+    const obs2Txt=(teacherProfile.t2Active&&ext.obs2)?`${obs2Label()}: ${ext.obs2}`:"";
+    return (
+      `${globalP?`[전역 지시문]\n${globalP}\n\n`:""}`+
+      `학생 ${stuName||"(미선택)"}의 활동 ${ai+1} [${q?.title||""}] 기록으로 교세특 초안을 약 ${ext.bytes}바이트로 작성하세요.\n`+
+      `문항: ${q?.question||""}\n학생답변: ${stuAns}\n`+
+      `국어역량: ${ext.korComp.join(",")||"없음"}\n수학역량: ${ext.mathComp.join(",")||"없음"}\n`+
+      `${ext.prompt?`교사 추가 프롬프트: ${ext.prompt}\n`:""}`+
+      `${obs1Txt?obs1Txt+"\n":""}${obs2Txt?obs2Txt+"\n":""}`+
+      `지침: 3인칭, "해당 학생", 세특만 작성`
+    );
+  };
+
   const generateActSetk=async(ai)=>{
     const keys=ensureKey();if(!keys)return;
     const ext=setkExtras[ai];const q=questions[ai];
@@ -362,83 +339,75 @@ function App(){
     const stuAns=sub?.answers[q?.id]?.text||"(제출 없음)";
     setSetkPartGen(p=>({...p,[ai]:true}));setRightActIdx(ai);
     try{
-      const text=await callAI(
-        `학생 ${stu?.name||"(미선택)"}의 활동 ${ai+1} [${q?.title||""}] 기록으로 교세특 초안을 약 ${ext.bytes}바이트로 작성하세요.\n`+
-        `문항: ${q?.question||""}\n학생답변: ${stuAns}\n국어역량: ${ext.korComp.join(",")||"없음"}\n수학역량: ${ext.mathComp.join(",")||"없음"}\n`+
-        `교사프롬프트: ${ext.prompt||"없음"}\n교사1: ${ext.obs1||"없음"}\n교사2: ${ext.obs2||"없음"}\n지침: 3인칭, 해당 학생, 세특만 작성`,
-        aiEngine, keys
-      );
+      const text=await callAI(buildSetkPrompt(ai,ext,q,stuAns,stu?.name),aiEngine,keys);
       setSetkPartResult(p=>({...p,[ai]:text}));
       setSetkExtras(prev=>{const n=[...prev];n[ai]={...n[ai],savedDraft:text};return n;});
     }catch(e){setSetkPartResult(p=>({...p,[ai]:"오류: "+e.message}));}
     setSetkPartGen(p=>({...p,[ai]:false}));
   };
 
-  /* ── 선택된 활동 전체 세특 종합 ── */
+  /* 선택 활동 전체 종합 세특 */
   const generateAllSetk=async()=>{
     const keys=ensureKey();if(!keys)return;
     const stu=ROSTER.find(s=>s.id===setkStu);
     const sub=getSetkSub();
     setSetkGen(true);setSetkResult(null);setRightActIdx(null);
-    const selectedActs=setkExtras.map((ext,i)=>({ext,q:questions[i],i})).filter(({ext})=>ext.selected);
+    const selectedActs=setkExtras.map((ext,i)=>({ext,q:questions[i],i})).filter(({ext})=>ext.selected!==false);
     try{
       const acts=selectedActs.map(({ext,q,i})=>{
         const stuAns=sub?.answers[q.id]?.text||"(제출 없음)";
-        return`[활동${i+1}: ${q.title}]\n문항: ${q.question}\n학생: ${stuAns}\n국어: ${ext.korComp.join(",")}\n수학: ${ext.mathComp.join(",")}\n프롬프트: ${ext.prompt}\n교사1: ${ext.obs1}\n교사2: ${ext.obs2}`;
+        const qKey=`q${i+1}`;const gp=globalPrompts[qKey]||"";
+        const obs1Txt=ext.obs1?`${obs1Label()}: ${ext.obs1}`:"";
+        const obs2Txt=(teacherProfile.t2Active&&ext.obs2)?`${obs2Label()}: ${ext.obs2}`:"";
+        return `[활동${i+1}: ${q.title}]${gp?`\n[전역지시: ${gp}]`:""}\n문항: ${q.question}\n학생: ${stuAns}\n국어: ${ext.korComp.join(",")}\n수학: ${ext.mathComp.join(",")}\n${obs1Txt}\n${obs2Txt}`;
       }).join("\n\n");
       const text=await callAI(
-        `학생 ${stu?.name||"미선택"}의 융합수업 활동(${selectedActs.map(({i})=>`활동${i+1}`).join(",")}) 기록으로 교세특을 약 ${charLimit}자로 작성하세요.\n`+
-        `활용내용명: ${setkTheme||"미선택"}\n\n${acts}\n\n지침: 3인칭, "해당 학생", 국어/수학 역량 언급, 세특만 작성`,
-        aiEngine, keys
+        `학생 ${stu?.name||"미선택"}의 융합수업 기록으로 교세특을 약 ${charLimit}자로 작성하세요.\n활용내용명: ${setkTheme||"미선택"}\n\n${acts}\n\n지침: 3인칭, "해당 학생", 국어/수학 역량 언급, 세특만 작성`,
+        aiEngine,keys
       );
       setSetkResult(text);
     }catch(e){setSetkResult("오류: "+e.message);}
     setSetkGen(false);
   };
 
-  /* ── 세특 엑셀 내보내기 ── */
+  /* 세특 엑셀 내보내기 */
   const exportSetkExcel=()=>{
     const stu=ROSTER.find(s=>s.id===setkStu);
     const today=new Date().toLocaleDateString("ko-KR");
     const rows=[["학생명",stu?.name||""],["학번",setkStu],["활용내용명",setkTheme],["생성일",today],[""],["전체 세특",setkResult||"(미생성)"],[""],
-      ...setkExtras.filter(e=>e.selected).map((e,i)=>["활동"+(i+1)+" 초안",e.savedDraft||"(미생성)"])
+      ...setkExtras.filter((e,i)=>e.selected!==false).map((e,i)=>["활동"+(i+1)+" 초안",e.savedDraft||"(미생성)"])
     ];
     const csv="﻿"+rows.map(r=>r.map(v=>'"'+String(v||"").replace(/"/g,'""')+'"').join(",")).join("\r\n");
     const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv],{type:"text/csv;charset=utf-8;"}));a.download=`세특_${stu?.name||"미선택"}_${today.replace(/\./g,"")}.csv`;document.body.appendChild(a);a.click();document.body.removeChild(a);
   };
 
-  /* ── OCR (AI 이미지 읽기) ── */
-  const runOCR=async(qIdx,imgData)=>{
-    const keys=ensureKey();if(!keys)return;
-    const qid=questions[qIdx]?.id;
-    setOcrLoading(p=>({...p,[qid]:true}));
+  /* GPT-4o Vision OCR (V4) */
+  const runOCR=async(qId,imgData)=>{
+    const keys={...apiKeys};
+    if(!keys.openai){const k=prompt("OCR에 OpenAI(GPT-4o) API 키가 필요합니다.");if(!k)return;keys.openai=k;setApiKeys(keys);ls.set("apiKeys",keys);}
+    setOcrLoading(p=>({...p,[qId]:true}));
     try{
-      // Claude Vision으로 OCR (이미지에서 텍스트 추출)
-      const key=keys.claude;
-      if(!key)throw new Error("OCR은 Claude API 키가 필요합니다.");
-      const b64=imgData.split(",")[1];
-      const mt=imgData.match(/data:(image\/\w+);/)?.[1]||"image/jpeg";
-      const res=await fetch("https://api.anthropic.com/v1/messages",{
-        method:"POST",
-        headers:{"Content-Type":"application/json","x-api-key":key,"anthropic-version":"2023-06-01","anthropic-dangerous-direct-browser-access":"true"},
-        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,messages:[{role:"user",content:[
-          {type:"image",source:{type:"base64",media_type:mt,data:b64}},
-          {type:"text",text:"이 이미지에 있는 텍스트를 정확하게 추출해 주세요. 시나 지문이 있다면 그대로 옮겨주세요. 텍스트만 출력하고 다른 설명은 하지 마세요."}
-        ]}]})
-      });
-      const d=await res.json();if(d.error)throw new Error(d.error.message);
-      const text=(d.content||[]).map(x=>x.text||"").join("");
-      setAnswers(p=>({...p,[qid]:{...(p[qid]||{}),imgText:text}}));
+      const text=await runGPTVisionOCR(imgData,keys.openai);
+      setAnswers(p=>({...p,[qId]:{...(p[qId]||{}),imgText:text}}));
+      setOcrDone(p=>({...p,[qId]:true}));
+      setImgSaved(p=>({...p,[qId]:false})); // OCR 완료 → 저장 필요 상태로
     }catch(e){alert("OCR 오류: "+e.message);}
-    setOcrLoading(p=>({...p,[qid]:false}));
+    setOcrLoading(p=>({...p,[qId]:false}));
   };
 
-  const reset=()=>{setPage("login");setStuId("");setStuName("");setStuErr("");setAnswers({});setCurQ(0);setSubmitted(null);setSeteuk(null);setTNote("");};
+  /* V4 인터록: 이미지 저장 처리 */
+  const saveImgText=(qId)=>{
+    setImgSaved(p=>({...p,[qId]:true}));
+    setOcrDone(p=>({...p,[qId]:false}));
+    alert("저장되었습니다. 다음 활동으로 이동할 수 있습니다.");
+  };
+
+  const reset=()=>{setPage("login");setStuId("");setStuName("");setStuErr("");setAnswers({});setCurQ(0);setSubmitted(null);setSeteuk(null);setTNote("");setOcrDone({});setImgSaved({});};
   const doneCount=questions.filter(q=>(answers[q.id]?.text||"").trim().length>=20).length;
 
   /* ── 공통 컴포넌트 ── */
-  const TBtn=()=>( // 학생 화면에서는 교사모드 버튼 노출 안 함 (보안)
-    page!=="worksheet"&&page!=="review"&&page!=="result"
+  const TBtn=()=>(
+    (page!=="worksheet"&&page!=="review"&&page!=="result")
       ?<button onClick={()=>{setPwInput("");setPage("pw");}} style={{...btn(`linear-gradient(135deg,${cv.lavMd},#b8a4f0)`,cv.ink),borderRadius:20,fontSize:".76rem",padding:".38rem 1.05rem"}}>🏫 교사 모드</button>
       :null
   );
@@ -451,7 +420,7 @@ function App(){
       </div>
     </div>
   );
-  const Spinner=({prog,msg})=>(
+  const Spin=({prog,msg})=>(
     <div style={{position:"fixed",inset:0,background:"rgba(45,40,64,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}>
       <div style={{...crd(),maxWidth:320,width:"90%",textAlign:"center",padding:"2.3rem"}}>
         <div style={{width:46,height:46,border:`3px solid ${cv.border}`,borderTopColor:cv.lav,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 1.2rem"}}/>
@@ -461,17 +430,16 @@ function App(){
     </div>
   );
 
-  /* ════════════════ PAGE: LOGIN ════════════════ */
+  /* ════════ LOGIN ════════ */
   if(page==="login")return(
     <div style={{minHeight:"100vh",background:cv.bg,display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 1.6rem",height:54,background:"#fff",borderBottom:`2px solid ${cv.border}`}}>
-        <span style={{fontWeight:800,fontSize:"1rem",color:cv.ink}}>화법과 작문 <span style={{color:cv.lav}}>×</span> 확률과 통계</span>
-        <TBtn/>
+        <span style={{fontWeight:800,fontSize:"1rem",color:cv.ink}}>화법과 작문 <span style={{color:cv.lav}}>×</span> 확률과 통계</span><TBtn/>
       </div>
       <div style={{flex:1,display:"grid",gridTemplateColumns:"1fr 1fr"}}>
         <div style={{background:"linear-gradient(160deg,#d8cfff,#c5e8ff,#d4f5e8)",padding:"3rem 2.5rem",display:"flex",flexDirection:"column",justifyContent:"space-between"}}>
           <div>
-            <div style={{...pill("rgba(255,255,255,.75)",cv.lav,"rgba(124,92,191,.3)"),marginBottom:"1.3rem",fontSize:".71rem",letterSpacing:".1em"}}>고등학교 교과 융합수업 V3</div>
+            <div style={{...pill("rgba(255,255,255,.75)",cv.lav,"rgba(124,92,191,.3)"),marginBottom:"1.3rem",fontSize:".71rem",letterSpacing:".1em"}}>고등학교 교과 융합수업 VPC V4</div>
             <h1 style={{fontWeight:900,fontSize:"2.3rem",lineHeight:1.2,marginBottom:".9rem",color:cv.ink}}>화법과 작문<br/><span style={{color:cv.lav}}>×</span> 확률과 통계</h1>
             <div style={{display:"flex",gap:".45rem",margin:".8rem 0 1.2rem",flexWrap:"wrap"}}>
               <span style={pill("#e8d5ff","#6b35c7","#c5a8f0")}>📖 화법과 작문</span>
@@ -507,7 +475,7 @@ function App(){
     </div>
   );
 
-  /* ════════════════ PAGE: PW ════════════════ */
+  /* ════════ PW ════════ */
   if(page==="pw")return(
     <div style={{minHeight:"100vh",background:cv.bg,display:"flex",flexDirection:"column"}}>
       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 1.6rem",height:54,background:"#fff",borderBottom:`2px solid ${cv.border}`}}>
@@ -537,28 +505,73 @@ function App(){
     </div>
   );
 
-  /* ════════════════ PAGE: TEACHER ════════════════ */
+  /* ════════ TEACHER ════════ */
   if(page==="teacher"){
-    const MENU=[{k:"dashboard",icon:"👥",label:"학생현황"},{k:"submissions",icon:"📋",label:"제출현황",badge:submissions.length},{k:"questions",icon:"✏️",label:"문항설정"},{k:"setk",icon:"🧠",label:"활동 분석 및 세특 작성"},{k:"settings",icon:"⚙️",label:"환경설정"}];
+    /* V4: 사이드바 홈 메뉴 추가 */
+    const MENU=[
+      {k:"home",icon:"🏠",label:"홈"},
+      {k:"dashboard",icon:"👥",label:"학생현황"},
+      {k:"submissions",icon:"📋",label:"제출현황",badge:submissions.length},
+      {k:"questions",icon:"✏️",label:"문항설정"},
+      {k:"setk",icon:"🧠",label:"활동 분석 및 세특"},
+      {k:"settings",icon:"⚙️",label:"환경설정"},
+    ];
     return(
       <div style={{minHeight:"100vh",display:"flex",flexDirection:"column",background:cv.bg}}>
         <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 1.6rem",height:54,background:`linear-gradient(90deg,${cv.lav},#9b59b6)`,color:"#fff",position:"sticky",top:0,zIndex:80,boxShadow:"0 3px 14px rgba(124,92,191,.25)"}}>
-          <span onClick={()=>setPage("login")} style={{fontWeight:800,cursor:"pointer",color:"#fff",fontSize:"1rem"}}>🏫 교사 페이지 V3</span>
+          <span onClick={()=>setTab("home")} style={{fontWeight:800,cursor:"pointer",color:"#fff",fontSize:"1rem"}}>🏫 교사 페이지 VPC V4</span>
           <div style={{display:"flex",alignItems:"center",gap:"1rem"}}>
             <span style={{fontSize:".8rem",color:"rgba(255,255,255,.78)"}}>화법과 작문 × 확률과 통계</span>
             <button onClick={()=>{setPage("login");setPwInput("");}} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.4)",borderRadius:20,padding:".3rem .9rem",fontSize:".78rem"}}>로그아웃</button>
           </div>
         </div>
         <div style={{display:"flex",flex:1,overflow:"hidden",minHeight:"calc(100vh - 54px)"}}>
-          <aside style={{width:215,flexShrink:0,background:"#fff",borderRight:`2px solid ${cv.border}`,display:"flex",flexDirection:"column",padding:"1.2rem 0"}}>
+          {/* V4: 사이드바 + 호버 효과 (CSS 클래스 사용) */}
+          <aside style={{width:215,flexShrink:0,background:"#fff",borderRight:`2px solid ${cv.border}`,display:"flex",flexDirection:"column",padding:"1rem 0"}}>
             {MENU.map(({k,icon,label,badge})=>(
-              <div key={k} onClick={()=>setTab(k)} style={{display:"flex",alignItems:"center",gap:".65rem",padding:".7rem 1.3rem",cursor:"pointer",fontSize:".9rem",fontWeight:700,color:tab===k?cv.lav:cv.muted,background:tab===k?cv.lavLt:"transparent",borderLeft:`3px solid ${tab===k?cv.lav:"transparent"}`,lineHeight:1.3}}>
-                {icon} {label}{badge>0&&<span style={{...pill(cv.lavMd,cv.ink,cv.lavMd),fontSize:".65rem",padding:".08rem .38rem",marginLeft:"auto"}}>{badge}</span>}
+              <div key={k} onClick={()=>setTab(k)} className={`sidebar-item${tab===k?" active":""}`}>
+                {icon} {label}
+                {badge>0&&<span style={{...pill(cv.lavMd,cv.ink,cv.lavMd),fontSize:".63rem",padding:".08rem .38rem",marginLeft:"auto"}}>{badge}</span>}
               </div>
             ))}
           </aside>
 
           <main style={{flex:1,overflowY:"auto",padding:"1.8rem 2rem"}}>
+
+            {/* ══ 홈 (V4 신규) ══ */}
+            {tab==="home"&&(
+              <>
+                <div style={{fontWeight:800,fontSize:"1.3rem",marginBottom:"1.4rem",color:cv.ink}}>🏠 홈</div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:"1.1rem",marginBottom:"1.8rem"}}>
+                  {[
+                    {icon:"👥",label:"학생현황",desc:"출석 체크 및 명단 관리",k:"dashboard",color:cv.lav},
+                    {icon:"📋",label:"제출현황",desc:`총 ${submissions.length}건 제출됨`,k:"submissions",color:cv.mint},
+                    {icon:"✏️",label:"문항설정",desc:`총 ${questions.length}개 문항`,k:"questions",color:cv.peachDk},
+                    {icon:"🧠",label:"활동 분석 및 세특",desc:"AI 세특 초안 생성",k:"setk",color:cv.lav},
+                    {icon:"⚙️",label:"환경설정",desc:"API키·교사 프로필 관리",k:"settings",color:cv.muted},
+                  ].map(({icon,label,desc,k,color})=>(
+                    <div key={k} onClick={()=>setTab(k)} style={{...crd(),cursor:"pointer",transition:"all .18s",display:"flex",alignItems:"flex-start",gap:".8rem"}} onMouseOver={e=>e.currentTarget.style.boxShadow="0 6px 24px rgba(124,92,191,.18)"} onMouseOut={e=>e.currentTarget.style.boxShadow="0 2px 14px rgba(124,92,191,.09)"}>
+                      <div style={{fontSize:"1.8rem",lineHeight:1}}>{icon}</div>
+                      <div><div style={{fontWeight:800,fontSize:"1rem",color,marginBottom:".2rem"}}>{label}</div><div style={{fontSize:".8rem",color:cv.muted}}>{desc}</div></div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{...crd({background:cv.lavLt,border:`1.5px solid ${cv.lavMd}`})}}>
+                  <div style={{fontWeight:700,marginBottom:".6rem",color:cv.ink}}>⚡ AI 엔진 현황</div>
+                  <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
+                    {AI_ENGINES.map(eng=>(
+                      <div key={eng} style={{...pill(aiEngine===eng?cv.lav:cv.bg,aiEngine===eng?"#fff":cv.muted,aiEngine===eng?cv.lav:cv.border2),fontSize:".82rem",padding:".3rem .8rem"}}>
+                        {aiEngine===eng?"✅ ":""}{eng}{aiEngine===eng?" (사용중)":""}
+                      </div>
+                    ))}
+                  </div>
+                  {teacherProfile.t1Name&&<div style={{marginTop:".7rem",fontSize:".85rem",color:cv.ink2}}>
+                    👤 교사 1: <strong>{teacherProfile.t1Name}</strong> ({teacherProfile.t1Subject||"과목 미설정"})
+                    {teacherProfile.t2Active&&teacherProfile.t2Name&&<> &nbsp;|&nbsp; 👤 교사 2: <strong>{teacherProfile.t2Name}</strong> ({teacherProfile.t2Subject||"과목 미설정"})</>}
+                  </div>}
+                </div>
+              </>
+            )}
 
             {/* ══ 학생현황 ══ */}
             {tab==="dashboard"&&(
@@ -577,7 +590,7 @@ function App(){
                   <button onClick={saveAtt} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem"}}>💾 저장</button>
                   <button onClick={exportExcel} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),fontSize:".78rem",padding:".35rem .85rem"}}>📊 엑셀 내보내기</button>
                 </div>
-                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`,boxShadow:"0 2px 10px rgba(124,92,191,.07)"}}>
+                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:".85rem",minWidth:680}}>
                     <thead>
                       <tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
@@ -596,17 +609,8 @@ function App(){
                             <td style={{padding:".42rem .45rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,color:cv.muted,fontSize:".8rem"}}>{s.no}</td>
                             <td style={{padding:".42rem .45rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,fontFamily:"monospace",fontWeight:700,fontSize:".83rem"}}>{s.id}</td>
                             <td style={{padding:".42rem .45rem .42rem .9rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700,fontSize:".9rem"}}>{s.name}</td>
-                            {PERIODS.map(p=>{
-                              const v=(att[s.id]||{})[p]||"";const isSlash=v==="/";
-                              return(
-                                <td key={p} style={{padding:".3rem .1rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                                  <div onClick={()=>toggleAtt(s.id,p)} style={{width:36,height:28,margin:"0 auto",borderRadius:6,border:`1.5px solid ${isSlash?cv.rose:cv.border2}`,background:isSlash?cv.roseLt:"#fafcff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:".95rem",fontWeight:800,color:isSlash?cv.rose:cv.border2,userSelect:"none"}}>{isSlash?"/":"·"}</div>
-                                </td>
-                              );
-                            })}
-                            <td style={{padding:".3rem .45rem",borderBottom:`1px solid ${cv.border}`}}>
-                              <input value={attNote[s.id]||""} onChange={e=>setAttNote(p=>({...p,[s.id]:e.target.value}))} placeholder="—" style={{border:"none",outline:"none",background:"transparent",fontSize:".85rem",width:"100%",fontFamily:"inherit",color:cv.ink2}}/>
-                            </td>
+                            {PERIODS.map(p=>{const v=(att[s.id]||{})[p]||"";const isS=v==="/";return(<td key={p} style={{padding:".3rem .1rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div onClick={()=>toggleAtt(s.id,p)} style={{width:36,height:28,margin:"0 auto",borderRadius:6,border:`1.5px solid ${isS?cv.rose:cv.border2}`,background:isS?cv.roseLt:"#fafcff",display:"flex",alignItems:"center",justifyContent:"center",cursor:"pointer",fontSize:".95rem",fontWeight:800,color:isS?cv.rose:cv.border2,userSelect:"none"}}>{isS?"/":"·"}</div></td>);})}
+                            <td style={{padding:".3rem .45rem",borderBottom:`1px solid ${cv.border}`}}><input value={attNote[s.id]||""} onChange={e=>setAttNote(p=>({...p,[s.id]:e.target.value}))} placeholder="—" style={{border:"none",outline:"none",background:"transparent",fontSize:".85rem",width:"100%",fontFamily:"inherit",color:cv.ink2}}/></td>
                           </tr>
                         );
                       })}
@@ -617,12 +621,12 @@ function App(){
               </>
             )}
 
-            {/* ══ 제출현황 V3: 활동별 세분화 ══ */}
+            {/* ══ 제출현황 (V3 활동별 세분화 유지) ══ */}
             {tab==="submissions"&&(
               <>
                 <div style={{display:"flex",alignItems:"center",gap:".9rem",marginBottom:"1.4rem",flexWrap:"wrap"}}>
                   <div style={{fontWeight:800,fontSize:"1.3rem",color:cv.ink,whiteSpace:"nowrap"}}>📋 제출현황</div>
-                  <div style={{display:"flex",alignItems:"center",gap:".5rem",flex:1,minWidth:300}}>
+                  <div style={{display:"flex",alignItems:"center",gap:".5rem",flex:1,minWidth:280}}>
                     <span style={{fontSize:".8rem",color:cv.muted,whiteSpace:"nowrap"}}>📁 상위 폴더:</span>
                     <input style={{...inp(),flex:1,fontSize:".82rem",padding:".42rem .78rem"}} placeholder="https://drive.google.com/drive/folders/..." value={rootUrl} onChange={e=>{setRootUrl(e.target.value);ls.set("rootUrl",e.target.value);}}/>
                     <button onClick={autoMatch} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".79rem",padding:".42rem .92rem",whiteSpace:"nowrap"}}>🔗 자동 매칭</button>
@@ -639,74 +643,47 @@ function App(){
                     <button onClick={()=>{ls.set("driveSub",driveSub);ls.set("driveUrls",driveUrls);setDriveSaved(true);setTimeout(()=>setDriveSaved(false),2200);}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .82rem"}}>💾 저장</button>
                   </div>
                 </div>
-                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`,boxShadow:"0 2px 10px rgba(124,92,191,.07)"}}>
+                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:".83rem",minWidth:700}}>
                     <thead>
                       <tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
-                        <th style={{padding:".58rem .8rem",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:38}}>연번</th>
-                        <th style={{padding:".58rem .8rem",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:56}}>학번</th>
-                        <th style={{padding:".58rem .8rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:68}}>이름</th>
-                        {/* V3: 활동별 컬럼 세분화 */}
-                        {questions.map((_,i)=>(
-                          <th key={i} style={{padding:".58rem .5rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:80}}>활동{i+1}</th>
-                        ))}
-                        <th style={{padding:".58rem .8rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:80}}>📁 드라이브</th>
-                        <th style={{padding:".58rem .8rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:90}}>📂 폴더</th>
-                        <th style={{padding:".58rem .8rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:90}}>종합</th>
-                        <th style={{padding:".58rem .8rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:80}}>열람</th>
+                        {["연번","학번","이름"].map(h=><th key={h} style={{padding:".58rem .8rem",textAlign:h==="이름"?"left":"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2}}>{h}</th>)}
+                        {questions.map((_,i)=><th key={i} style={{padding:".58rem .5rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:80}}>활동{i+1}</th>)}
+                        {["📁 드라이브","📂 폴더","종합","열람"].map(h=><th key={h} style={{padding:".58rem .8rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontSize:".8rem",fontWeight:700,color:cv.ink2,width:90}}>{h}</th>)}
                       </tr>
                     </thead>
                     <tbody>
                       {ROSTER.map(s=>{
-                        const st=getStatus(s);const[sbg,,sbc]=stC[st];
-                        const sub=submissions.find(x=>x.stuId===s.id);
+                        const st=getStatus(s);const[sbg,,sbc]=stC[st];const sub=submissions.find(x=>x.stuId===s.id);
                         return(
                           <tr key={s.id} style={{background:st==="complete"?"#f2fff8":st==="none"?"#fff8f8":"#fff"}}>
                             <td style={{padding:".45rem .8rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,color:cv.muted,fontSize:".78rem"}}>{s.no}</td>
                             <td style={{padding:".45rem .8rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,fontFamily:"monospace",fontWeight:700,fontSize:".8rem"}}>{s.id}</td>
                             <td style={{padding:".45rem .8rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700}}>{s.name}</td>
-                            {/* V3: 활동별 제출 배지 + 리셋 버튼 */}
                             {questions.map((q,qi)=>{
-                              const submitted=isActSubmitted(s.id,q.id);
-                              return(
-                                <td key={qi} style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                                  <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
-                                    <span style={submitted?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>
-                                      {submitted?"✓ 제출":"미제출"}
-                                    </span>
-                                    {submitted&&(
-                                      <button onClick={()=>resetAct(s.id,q.id)} title="반려/재작성 처리" style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".68rem",padding:".15rem .5rem",borderRadius:6}}>↺ 리셋</button>
-                                    )}
-                                  </div>
-                                </td>
-                              );
+                              const isSubmitted=isActSubmitted(s.id,q.id);
+                              return(<td key={qi} style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
+                                <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".25rem"}}>
+                                  <span style={isSubmitted?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{isSubmitted?"✓ 제출":"미제출"}</span>
+                                  {isSubmitted&&<button onClick={()=>resetAct(s.id,q.id)} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".68rem",padding:".13rem .48rem",borderRadius:6}}>↺ 리셋</button>}
+                                </div>
+                              </td>);
                             })}
-                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                              <div onClick={()=>setDriveSub(p=>({...p,[s.id]:!p[s.id]}))} style={{...pill(driveSub[s.id]?"#e0f9ec":cv.bg,driveSub[s.id]?"#1a7a46":cv.muted,driveSub[s.id]?"#7ad9a0":cv.border2),cursor:"pointer",justifyContent:"center",minWidth:70}}>{driveSub[s.id]?"✓ 제출":"✕ 미제출"}</div>
-                            </td>
-                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                              {driveUrls[s.id]
-                                ?<a href={driveUrls[s.id]} target="_blank" rel="noreferrer" style={{...pill("#e8f9f0","#1a7a46","#7ad9a0"),textDecoration:"none"}}>📂 {s.name}</a>
-                                :<button onClick={()=>{const u=prompt(`${s.name} 폴더 URL:`);if(u){const n={...driveUrls,[s.id]:u.trim()};setDriveUrls(n);ls.set("driveUrls",n);}}} style={{...btn(cv.lavLt,cv.lav),border:`1px dashed ${cv.lavMd}`,fontSize:".75rem",padding:".22rem .58rem"}}>+ URL</button>
-                              }
-                            </td>
-                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                              <span style={pill(sbg,stC[st][1],sbc)}>{stLabel[st]}</span>
-                            </td>
-                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
-                              {sub?<button onClick={()=>{setSubmitted(sub);setPage("review");}} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".77rem",padding:".25rem .58rem"}}>교세특 →</button>:<span style={{color:cv.muted,fontSize:".77rem"}}>—</span>}
-                            </td>
+                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div onClick={()=>setDriveSub(p=>({...p,[s.id]:!p[s.id]}))} style={{...pill(driveSub[s.id]?"#e0f9ec":cv.bg,driveSub[s.id]?"#1a7a46":cv.muted,driveSub[s.id]?"#7ad9a0":cv.border2),cursor:"pointer",justifyContent:"center",minWidth:70}}>{driveSub[s.id]?"✓ 제출":"✕ 미제출"}</div></td>
+                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{driveUrls[s.id]?<a href={driveUrls[s.id]} target="_blank" rel="noreferrer" style={{...pill("#e8f9f0","#1a7a46","#7ad9a0"),textDecoration:"none"}}>📂 {s.name}</a>:<button onClick={()=>{const u=prompt(`${s.name} 폴더 URL:`);if(u){const n={...driveUrls,[s.id]:u.trim()};setDriveUrls(n);ls.set("driveUrls",n);}}} style={{...btn(cv.lavLt,cv.lav),border:`1px dashed ${cv.lavMd}`,fontSize:".75rem",padding:".22rem .58rem"}}>+ URL</button>}</td>
+                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><span style={pill(sbg,stC[st][1],sbc)}>{stLabel[st]}</span></td>
+                            <td style={{padding:".45rem .5rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{sub?<button onClick={()=>{setSubmitted(sub);setPage("review");}} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".77rem",padding:".25rem .58rem"}}>교세특 →</button>:<span style={{color:cv.muted,fontSize:".77rem"}}>—</span>}</td>
                           </tr>
                         );
                       })}
                     </tbody>
                   </table>
                 </div>
-                <div style={{marginTop:".8rem",fontSize:".76rem",color:cv.muted}}>💡 활동별 <strong>↺ 리셋</strong> 버튼 클릭 시 해당 학생의 해당 활동 답변이 초기화되어 재작성이 가능해집니다.</div>
+                <div style={{marginTop:".8rem",fontSize:".76rem",color:cv.muted}}>💡 활동별 ↺ 리셋 클릭 시 해당 답변 초기화 → 학생 재작성 가능</div>
               </>
             )}
 
-            {/* ══ 문항설정 V3: 다중 시/지문 이미지 ══ */}
+            {/* ══ 문항설정 (V3 다중 이미지 유지) ══ */}
             {tab==="questions"&&(
               <>
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.4rem"}}>
@@ -720,46 +697,24 @@ function App(){
                   {questions.map((q,idx)=>(
                     <div key={q.id} style={crd()}>
                       <div onClick={()=>setExpandedQ(expandedQ===idx?null:idx)} style={{display:"flex",alignItems:"center",justifyContent:"space-between",cursor:"pointer",padding:".3rem 0"}}>
-                        <div style={{display:"flex",alignItems:"center",gap:".7rem"}}>
-                          <span style={{fontWeight:900,fontSize:"1.15rem",color:cv.lav}}>Q{idx+1}</span>
-                          <span style={{fontWeight:700,color:cv.ink,fontSize:".96rem"}}>{q.title}</span>
-                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:".7rem"}}><span style={{fontWeight:900,fontSize:"1.15rem",color:cv.lav}}>Q{idx+1}</span><span style={{fontWeight:700,color:cv.ink}}>{q.title}</span></div>
                         <div style={{display:"flex",gap:".5rem"}}>
                           <button onClick={e=>{e.stopPropagation();if(window.confirm("삭제?"))setQuestions(p=>p.filter((_,i)=>i!==idx));}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".76rem",padding:".22rem .58rem"}}>삭제</button>
-                          <span style={{color:cv.ink2,fontSize:".96rem"}}>{expandedQ===idx?"▲":"▼"}</span>
+                          <span style={{color:cv.ink2}}>{expandedQ===idx?"▲":"▼"}</span>
                         </div>
                       </div>
                       {expandedQ===idx&&(
                         <div style={{borderTop:`1px solid ${cv.border}`,paddingTop:"1.1rem",display:"flex",flexDirection:"column",gap:".95rem",marginTop:".6rem"}}>
+                          <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>① 교과목</div><input style={inp()} value={q.subject} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],subject:e.target.value};return n;})}/></div>
                           <div>
-                            <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>① 교과목</div>
-                            <input style={inp()} value={q.subject} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],subject:e.target.value};return n;})}/>
+                            <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".4rem"}}>② 지문/시 이미지 등록 (다중, 최대 3개)</div>
+                            <PoemImageManager images={q.poemImages||[]} onChange={imgs=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],poemImages:imgs};return n;})}/>
                           </div>
-                          {/* V3: 다중 시/지문 이미지 등록 */}
-                          <div>
-                            <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".4rem"}}>② 지문/시 이미지 등록 (다중, 최대 3개) <span style={{color:cv.muted,fontWeight:400}}>— 학생이 드롭다운으로 선택</span></div>
-                            <PoemImageManager
-                              images={q.poemImages||[]}
-                              onChange={imgs=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],poemImages:imgs};return n;})}
-                            />
-                          </div>
-                          <div>
-                            <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>③ 문항 내용 (안내/지문)</div>
-                            <textarea style={{...inp(),minHeight:85,resize:"vertical",lineHeight:1.75}} value={q.question} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],question:e.target.value};return n;})}/>
-                          </div>
-                          <div>
-                            <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>④ 추가 문항 (세부 질문)</div>
-                            <textarea style={{...inp(),minHeight:72,resize:"vertical",lineHeight:1.75}} value={q.subQuestion||""} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],subQuestion:e.target.value};return n;})} placeholder="예) ① ... ② ..."/>
-                          </div>
+                          <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>③ 문항 내용 (안내/지문)</div><textarea style={{...inp(),minHeight:85,resize:"vertical",lineHeight:1.75}} value={q.question} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],question:e.target.value};return n;})}/></div>
+                          <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>④ 추가 문항 (세부 질문)</div><textarea style={{...inp(),minHeight:72,resize:"vertical",lineHeight:1.75}} value={q.subQuestion||""} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],subQuestion:e.target.value};return n;})} placeholder="예) ① ... ② ..."/></div>
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".8rem"}}>
-                            <div>
-                              <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>문항 제목</div>
-                              <input style={inp()} value={q.title} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],title:e.target.value};return n;})}/>
-                            </div>
-                            <div>
-                              <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>최대 글자수</div>
-                              <input style={inp()} type="number" value={q.maxLen} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],maxLen:parseInt(e.target.value)||500};return n;})}/>
-                            </div>
+                            <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>문항 제목</div><input style={inp()} value={q.title} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],title:e.target.value};return n;})}/></div>
+                            <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>최대 글자수</div><input style={inp()} type="number" value={q.maxLen} onChange={e=>setQuestions(p=>{const n=[...p];n[idx]={...n[idx],maxLen:parseInt(e.target.value)||500};return n;})}/></div>
                           </div>
                           <div>
                             <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".42rem"}}>평가 기준</div>
@@ -782,7 +737,7 @@ function App(){
               </>
             )}
 
-            {/* ══ 활동 분석 및 세특 작성 V3 ══ */}
+            {/* ══ 활동 분석 및 세특 (교사 관찰 자동 매핑 포함) ══ */}
             {tab==="setk"&&(()=>{
               const sub=getSetkSub();
               const rightTitle=rightActIdx!==null?`활동 ${rightActIdx+1} 세특 결과 — ${questions[rightActIdx]?.title||""}`:"전체 세특 결과";
@@ -790,10 +745,8 @@ function App(){
               const rightLoading=rightActIdx!==null?!!setkPartGen[rightActIdx]:setkGen;
               return(
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:"1.4rem",alignItems:"start"}}>
-                  {/* 좌측 */}
                   <div>
                     <div style={{fontWeight:800,fontSize:"1.3rem",marginBottom:"1.2rem",color:cv.ink}}>🧠 활동 분석 및 세특 작성</div>
-                    {/* 헤더 필터: 학생 선택 + 활용내용명 + AI 엔진 */}
                     <div style={{...crd(),marginBottom:"1rem"}}>
                       <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".8rem",marginBottom:".8rem"}}>
                         <div>
@@ -808,61 +761,63 @@ function App(){
                           <input style={inp()} placeholder="예) 통계와 사회" value={setkTheme} onChange={e=>setSetkTheme(e.target.value)}/>
                         </div>
                       </div>
-                      {/* AI 엔진 선택 라디오 */}
                       <div>
                         <div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".4rem"}}>🤖 사용할 AI 엔진</div>
                         <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
                           {AI_ENGINES.map(eng=>(
                             <label key={eng} style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",padding:".38rem .75rem",borderRadius:8,border:`1.5px solid ${aiEngine===eng?cv.lav:cv.border2}`,background:aiEngine===eng?cv.lavLt:"#fff",fontWeight:aiEngine===eng?700:400,fontSize:".84rem",color:aiEngine===eng?cv.lav:cv.ink2}}>
-                              <input type="radio" name="aiEngine" value={eng} checked={aiEngine===eng} onChange={()=>{setAiEngine(eng);ls.set("aiEngine",eng);}} style={{accentColor:cv.lav}}/>{eng}
+                              <input type="radio" name="aiEngineSetk" value={eng} checked={aiEngine===eng} onChange={()=>{setAiEngine(eng);ls.set("aiEngine",eng);}} style={{accentColor:cv.lav}}/>{eng}
                             </label>
                           ))}
                         </div>
                       </div>
                     </div>
 
-                    {/* 활동 카드 */}
                     {questions.map((q,ai)=>{
                       const ext=setkExtras[ai]||mkAct();
                       const stuAns=sub?.answers[q.id]?.text||null;
+                      const qKey=`q${ai+1}`;
+                      const hasGlobalP=!!(globalPrompts[qKey]);
                       return(
                         <div key={q.id} style={{...crd(),marginBottom:"1rem"}}>
                           <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".9rem"}}>
                             <div style={{display:"flex",alignItems:"center",gap:".6rem"}}>
-                              {/* 활동 선택 체크박스 */}
                               <label style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer"}}>
                                 <input type="checkbox" checked={ext.selected!==false} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],selected:e.target.checked};return n;})} style={{accentColor:cv.lav,width:15,height:15}}/>
                                 <span style={{fontWeight:800,fontSize:".97rem",color:cv.lav}}>활동 {ai+1}</span>
                               </label>
+                              {hasGlobalP&&<span style={{...pill(cv.peachLt,cv.peachDk,cv.peachMd),fontSize:".68rem"}}>전역 프롬프트 설정됨</span>}
                             </div>
                             <span style={{fontSize:".8rem",color:cv.muted}}>{q.title}</span>
                           </div>
-                          {/* 문항 내용 표시 */}
                           {q.question&&<div style={{background:cv.skyLt,border:`1px solid ${cv.skyMd}`,borderRadius:8,padding:".65rem .9rem",fontSize:".84rem",lineHeight:1.75,color:cv.ink2,whiteSpace:"pre-wrap",marginBottom:".75rem"}}>{q.question}{q.subQuestion&&"\n\n"+q.subQuestion}</div>}
-                          {/* 학생 답변 */}
                           {setkStu&&<div style={{background:stuAns?"#f2fff8":cv.bg,border:`1px solid ${stuAns?cv.mintMd:cv.border2}`,borderRadius:8,padding:".65rem .9rem",fontSize:".84rem",lineHeight:1.75,color:stuAns?cv.ink2:cv.muted,whiteSpace:"pre-wrap",minHeight:48,marginBottom:".8rem"}}>{stuAns||"(제출된 답변 없음)"}</div>}
-                          {/* 역량 체크 */}
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".72rem",marginBottom:".75rem"}}>
                             <CompCheck label="📖 국어 교과 역량" items={KOR_COMP} sel={ext.korComp} onChange={v=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],korComp:v};return n;})}/>
                             <CompCheck label="📊 수학 교과 역량" items={MATH_COMP} sel={ext.mathComp} onChange={v=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],mathComp:v};return n;})}/>
                           </div>
-                          {/* 교사 프롬프트 */}
                           <div style={{marginBottom:".75rem"}}>
-                            <div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>💬 교사 프롬프트</div>
+                            <div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>💬 추가 프롬프트 <span style={{color:cv.muted,fontWeight:400}}>(전역 프롬프트에 추가됨)</span></div>
                             <textarea style={{...inp(),minHeight:55,resize:"vertical",lineHeight:1.65,background:"#fffdf0",border:`1.5px solid ${cv.peachMd}`}} value={ext.prompt} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],prompt:e.target.value};return n;})} placeholder="세특 작성 방향 · 강조 사항..."/>
                           </div>
-                          {/* 교사 관찰 */}
+                          {/* V4: 교사 관찰란 자동 매핑 레이블 */}
                           <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".72rem",marginBottom:".75rem"}}>
-                            <div><div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>교사 1 관찰</div><textarea style={{...inp(),minHeight:60,resize:"vertical",lineHeight:1.65}} value={ext.obs1} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs1:e.target.value};return n;})}/></div>
-                            <div><div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>교사 2 관찰</div><textarea style={{...inp(),minHeight:60,resize:"vertical",lineHeight:1.65}} value={ext.obs2} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs2:e.target.value};return n;})}/></div>
+                            <div>
+                              <div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>{obs1Label()}</div>
+                              <textarea style={{...inp(),minHeight:60,resize:"vertical",lineHeight:1.65}} value={ext.obs1} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs1:e.target.value};return n;})}/>
+                            </div>
+                            {teacherProfile.t2Active&&(
+                              <div>
+                                <div style={{fontSize:".74rem",fontWeight:700,color:cv.ink2,marginBottom:".28rem"}}>{obs2Label()}</div>
+                                <textarea style={{...inp(),minHeight:60,resize:"vertical",lineHeight:1.65}} value={ext.obs2} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs2:e.target.value};return n;})}/>
+                              </div>
+                            )}
                           </div>
-                          {/* 바이트 수 */}
                           <div style={{display:"flex",alignItems:"center",gap:".65rem",marginBottom:".9rem",padding:".55rem .85rem",background:cv.bg,borderRadius:8,border:`1px solid ${cv.border}`}}>
                             <span style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,whiteSpace:"nowrap"}}>세특 바이트 수:</span>
                             <input type="number" style={{...inp(),width:90,fontSize:".9rem",padding:".32rem .65rem"}} value={ext.bytes} min={100} max={3000} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],bytes:parseInt(e.target.value)||500};return n;})}/>
                             <span style={{fontSize:".78rem",color:cv.muted}}>bytes</span>
                           </div>
-                          {/* 저장 + 초안 작성 버튼 이원화 */}
                           <div style={{display:"flex",gap:".6rem"}}>
                             <button onClick={()=>{if(setkPartResult[ai]){setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],savedDraft:setkPartResult[ai]};return n;});alert("초안이 저장되었습니다.");}else alert("먼저 세특 초안을 생성해 주세요.")}} style={{...btn(cv.mintLt,cv.mint),border:`1px solid ${cv.mintMd}`,flex:"0 0 auto",fontSize:".84rem",padding:".6rem .9rem"}}>💾 저장하기</button>
                             <button onClick={()=>generateActSetk(ai)} disabled={!!setkPartGen[ai]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),flex:1,padding:".62rem",fontSize:".86rem",opacity:setkPartGen[ai]?.6:1}}>
@@ -874,32 +829,25 @@ function App(){
                       );
                     })}
 
-                    {/* 전체 세특 종합 */}
                     <div style={{...crd({background:cv.lavLt,border:`1.5px solid ${cv.lavMd}`}),marginBottom:"1rem"}}>
                       <div style={{fontWeight:700,fontSize:".95rem",color:cv.ink,marginBottom:".75rem"}}>📝 선택된 활동 전체 세특 종합 작성</div>
-                      <div style={{fontSize:".78rem",color:cv.muted,marginBottom:".7rem"}}>
-                        선택된 활동: {setkExtras.filter(e=>e.selected!==false).map((_,i)=>`활동${i+1}`).filter((_,i)=>setkExtras[i]?.selected!==false).join(", ")||"없음"}
-                      </div>
                       <div style={{display:"flex",alignItems:"center",gap:".65rem",marginBottom:".85rem"}}>
                         <span style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,whiteSpace:"nowrap"}}>글자수 제한:</span>
                         <input type="number" style={{...inp(),width:90,fontSize:".9rem",padding:".32rem .65rem"}} value={charLimit} min={100} max={2000} onChange={e=>setCharLimit(parseInt(e.target.value)||500)}/>
                         <span style={{fontSize:".78rem",color:cv.muted}}>자</span>
                       </div>
                       <button onClick={generateAllSetk} disabled={setkGen} style={{...btn(`linear-gradient(135deg,${cv.lav},${cv.mint})`),width:"100%",padding:".92rem",fontSize:".97rem",borderRadius:10,opacity:setkGen?.6:1}}>
-                        {setkGen?"⏳ 전체 생성 중...":`✦ 선택 활동 세특 종합 생성 ✦`}
+                        {setkGen?"⏳ 전체 생성 중...":"✦ 선택 활동 세특 종합 생성 ✦"}
                       </button>
                     </div>
                   </div>
 
-                  {/* 우측 패널 */}
                   <div style={{position:"sticky",top:"1.5rem"}}>
                     <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".85rem",flexWrap:"wrap",gap:".4rem"}}>
                       <div style={{fontWeight:700,fontSize:"1rem",color:cv.ink}}>📄 {rightTitle}</div>
                       <div style={{display:"flex",gap:".3rem",flexWrap:"wrap"}}>
                         <button onClick={()=>setRightActIdx(null)} style={{...btn(rightActIdx===null?cv.lav:cv.bg,rightActIdx===null?"#fff":cv.muted),border:`1px solid ${rightActIdx===null?cv.lav:cv.border2}`,borderRadius:20,fontSize:".73rem",padding:".2rem .62rem"}}>전체</button>
-                        {questions.map((_,i)=>(
-                          <button key={i} onClick={()=>setRightActIdx(i)} style={{...btn(rightActIdx===i?cv.lav:cv.bg,rightActIdx===i?"#fff":cv.muted),border:`1px solid ${rightActIdx===i?cv.lav:cv.border2}`,borderRadius:20,fontSize:".73rem",padding:".2rem .62rem"}}>활동{i+1}</button>
-                        ))}
+                        {questions.map((_,i)=>(<button key={i} onClick={()=>setRightActIdx(i)} style={{...btn(rightActIdx===i?cv.lav:cv.bg,rightActIdx===i?"#fff":cv.muted),border:`1px solid ${rightActIdx===i?cv.lav:cv.border2}`,borderRadius:20,fontSize:".73rem",padding:".2rem .62rem"}}>활동{i+1}</button>))}
                       </div>
                     </div>
                     {rightLoading
@@ -912,36 +860,92 @@ function App(){
                               <span style={{fontSize:".76rem",color:cv.muted}}>{rightContent.length}자</span>
                               <div style={{display:"flex",gap:".5rem"}}>
                                 <button onClick={()=>navigator.clipboard.writeText(rightContent).then(()=>alert("복사!")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),padding:".45rem 1rem",fontSize:".83rem"}}>📋 복사</button>
-                                {!rightActIdx&&setkResult&&<button onClick={exportSetkExcel} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),padding:".45rem 1rem",fontSize:".83rem"}}>📊 엑셀 내보내기</button>}
+                                {rightActIdx===null&&setkResult&&<button onClick={exportSetkExcel} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),padding:".45rem 1rem",fontSize:".83rem"}}>📊 엑셀</button>}
                               </div>
                             </div>
                           </div>
-                        :<div style={{...crd({border:`1.5px dashed ${cv.border2}`}),textAlign:"center",padding:"4rem 1.5rem",color:cv.muted,fontSize:".9rem"}}>
-                            <div style={{fontSize:"2.8rem",marginBottom:".9rem"}}>📝</div>
-                            활동별 초안 또는 전체 세특을<br/>생성하면 여기에 표시됩니다
-                          </div>
+                        :<div style={{...crd({border:`1.5px dashed ${cv.border2}`}),textAlign:"center",padding:"4rem 1.5rem",color:cv.muted,fontSize:".9rem"}}><div style={{fontSize:"2.8rem",marginBottom:".9rem"}}>📝</div>활동별 초안 또는 전체 세특을<br/>생성하면 여기에 표시됩니다</div>
                     }
                   </div>
                 </div>
               );
             })()}
 
-            {/* ══ 환경설정 V3: API 키 + 엔진 ══ */}
+            {/* ══ 환경설정 V4 (교사 프로필 + 전역 프롬프트 + API 키) ══ */}
             {tab==="settings"&&(
               <>
                 <div style={{fontWeight:800,fontSize:"1.3rem",marginBottom:"1.4rem",color:cv.ink}}>⚙️ 환경설정</div>
+
+                {/* 교사 프로필 */}
+                <div style={{...crd(),marginBottom:"1rem"}}>
+                  <div style={{fontWeight:700,marginBottom:"1rem",fontSize:".97rem"}}>👤 교사 프로필</div>
+                  <div style={{...crd({background:cv.lavLt,border:`1px solid ${cv.lavMd}`,padding:".9rem"}),marginBottom:".9rem"}}>
+                    <div style={{fontWeight:700,fontSize:".88rem",color:cv.lav,marginBottom:".65rem"}}>교사 1 (마스터)</div>
+                    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem"}}>
+                      <div>
+                        <div style={{fontSize:".77rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>성명</div>
+                        <input style={inp()} placeholder="예) 홍길동" value={teacherProfile.t1Name} onChange={e=>{const n={...teacherProfile,t1Name:e.target.value};setTeacherProfile(n);ls.set("teacherProfile",n);}}/>
+                      </div>
+                      <div>
+                        <div style={{fontSize:".77rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div>
+                        <input style={inp()} placeholder="예) 확률과 통계" value={teacherProfile.t1Subject} onChange={e=>{const n={...teacherProfile,t1Subject:e.target.value};setTeacherProfile(n);ls.set("teacherProfile",n);}}/>
+                      </div>
+                    </div>
+                    {teacherProfile.t1Name&&<div style={{marginTop:".6rem",fontSize:".8rem",color:cv.lav,fontWeight:700}}>→ 세특 작성 화면에서 "{teacherProfile.t1Name} 교사({teacherProfile.t1Subject||"담당 과목"})의 관찰" 로 표시됩니다</div>}
+                  </div>
+                  <div style={{...crd({background:teacherProfile.t2Active?cv.mintLt:"#f8f8f8",border:`1px solid ${teacherProfile.t2Active?cv.mintMd:cv.border2}`,padding:".9rem"})}}>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".65rem"}}>
+                      <div style={{fontWeight:700,fontSize:".88rem",color:teacherProfile.t2Active?cv.mint:cv.muted}}>교사 2 (코티칭 협력 교사)</div>
+                      <label style={{display:"flex",alignItems:"center",gap:".4rem",cursor:"pointer",fontSize:".83rem",fontWeight:700,color:teacherProfile.t2Active?cv.mint:cv.muted}}>
+                        <input type="checkbox" checked={teacherProfile.t2Active} onChange={e=>{const n={...teacherProfile,t2Active:e.target.checked};setTeacherProfile(n);ls.set("teacherProfile",n);}} style={{accentColor:cv.mint,width:16,height:16}}/>
+                        {teacherProfile.t2Active?"활성화됨":"비활성화"}
+                      </label>
+                    </div>
+                    {teacherProfile.t2Active&&(
+                      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem"}}>
+                        <div>
+                          <div style={{fontSize:".77rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>성명</div>
+                          <input style={inp()} placeholder="예) 김철수" value={teacherProfile.t2Name} onChange={e=>{const n={...teacherProfile,t2Name:e.target.value};setTeacherProfile(n);ls.set("teacherProfile",n);}}/>
+                        </div>
+                        <div>
+                          <div style={{fontSize:".77rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div>
+                          <input style={inp()} placeholder="예) 화법과 작문" value={teacherProfile.t2Subject} onChange={e=>{const n={...teacherProfile,t2Subject:e.target.value};setTeacherProfile(n);ls.set("teacherProfile",n);}}/>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* 활동별 전역 프롬프트 */}
+                <div style={{...crd(),marginBottom:"1rem"}}>
+                  <div style={{fontWeight:700,marginBottom:".4rem",fontSize:".97rem"}}>📋 활동별 전역 AI 지시문</div>
+                  <div style={{fontSize:".78rem",color:cv.muted,marginBottom:"1rem",lineHeight:1.6,background:cv.lavLt,padding:".65rem .9rem",borderRadius:8,border:`1px solid ${cv.lavMd}`}}>
+                    각 활동(Q1~Q4)별로 AI에게 전달할 페르소나·서술어 어미 제한·강조 사항 등을 사전 정의합니다.<br/>
+                    학생 화면에는 노출되지 않으며 세특 초안 생성 시 자동으로 합성됩니다.
+                  </div>
+                  {questions.map((q,i)=>{
+                    const qKey=`q${i+1}`;
+                    return(
+                      <div key={qKey} style={{marginBottom:".85rem"}}>
+                        <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>Q{i+1} — {q.title} 전역 지시문</div>
+                        <textarea style={{...inp(),minHeight:72,resize:"vertical",lineHeight:1.7,background:"#fffdf0",border:`1.5px solid ${cv.peachMd}`}} value={globalPrompts[qKey]||""} onChange={e=>{const n={...globalPrompts,[qKey]:e.target.value};setGlobalPrompts(n);ls.set("globalPrompts",n);}} placeholder={`예) Q${i+1} 세특 작성 시 '~함', '~임' 어미만 사용. 수학 개념 설명을 중심으로 서술할 것.`}/>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* API 키 */}
                 <div style={{...crd(),marginBottom:"1rem"}}>
                   <div style={{fontWeight:700,marginBottom:"1rem",fontSize:".97rem"}}>🤖 AI 엔진별 API Key</div>
-                  <div style={{fontSize:".78rem",color:cv.muted,marginBottom:"1rem",lineHeight:1.6,background:cv.lavLt,padding:".7rem .9rem",borderRadius:8,border:`1px solid ${cv.lavMd}`}}>
-                    <strong>Claude:</strong> x-api-key 헤더 사용 (Anthropic 전용)<br/>
-                    <strong>Gemini:</strong> URL ?key= 파라미터 사용 (x-api-key 불가)<br/>
-                    <strong>ChatGPT:</strong> Authorization: Bearer 헤더 사용
+                  <div style={{fontSize:".78rem",color:cv.muted,marginBottom:"1rem",lineHeight:1.6,background:cv.lavLt,padding:".65rem .9rem",borderRadius:8,border:`1px solid ${cv.lavMd}`}}>
+                    <strong>Claude:</strong> x-api-key 헤더 사용&nbsp;&nbsp;
+                    <strong>Gemini:</strong> URL ?key= 파라미터 (x-api-key 불가)&nbsp;&nbsp;
+                    <strong>ChatGPT:</strong> Authorization: Bearer 헤더 + OCR에도 사용 (GPT-4o Vision)
                   </div>
-                  {[["Claude","claude","sk-ant-...","Claude API 키 (교세특 생성 + OCR 모두 사용)"],["Gemini","gemini","AIza...","Google AI Studio에서 발급"],["ChatGPT","openai","sk-...","OpenAI API 키"]].map(([label,field,ph,hint])=>(
-                    <div key={field} style={{marginBottom:".9rem"}}>
+                  {[["Claude","claude","sk-ant-..."],["Gemini","gemini","AIza..."],["ChatGPT (GPT-4o)","openai","sk-... ← OCR(이미지 읽기)에도 사용됨"]].map(([label,field,ph])=>(
+                    <div key={field} style={{marginBottom:".85rem"}}>
                       <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>{label} API Key</div>
                       <input type="password" style={inp()} placeholder={ph} value={apiKeys[field]||""} onChange={e=>{const n={...apiKeys,[field]:e.target.value};setApiKeys(n);ls.set("apiKeys",n);}}/>
-                      <div style={{fontSize:".73rem",color:cv.muted,marginTop:".2rem"}}>{hint}</div>
                     </div>
                   ))}
                   <div style={{marginTop:".5rem"}}>
@@ -955,6 +959,8 @@ function App(){
                     </div>
                   </div>
                 </div>
+
+                {/* 비밀번호 + 초기화 */}
                 <div style={{...crd(),marginBottom:"1rem"}}>
                   <div style={{fontWeight:700,marginBottom:"1rem",fontSize:".97rem"}}>🔒 교사 비밀번호 변경</div>
                   <div style={{display:"flex",gap:".75rem",alignItems:"flex-end"}}>
@@ -979,21 +985,26 @@ function App(){
     );
   }
 
-  /* ════════════════ PAGE: WORKSHEET ════════════════ */
+  /* ════════ WORKSHEET (V4 조건부 가시성 + 인터록) ════════ */
   if(page==="worksheet"){
     const q=questions[curQ];if(!q)return null;
-    const ans=answers[q.id]||{text:"",imgData:null,imgText:"",poemSel:""};
+    const ans=answers[q.id]||{text:"",imgData:null,imgText:"",poemSel:"",showMathConcept:false,showPoem:false,showNonFiction:false};
     const cnt=(ans.text||"").length;
     const updAns=(f,v)=>setAnswers(p=>({...p,[q.id]:{...(p[q.id]||{}),[f]:v}}));
     const hasPoemImages=(q.poemImages||[]).length>0;
-    const selPoem=(q.poemImages||[]).find(p=>p.label===ans.poemSel);
+    const selPoem=(q.poemImages||[]).find(pi=>pi.label===ans.poemSel);
+    /* V4 인터록: OCR 완료 후 저장 필수 */
+    const ocrCompleted=!!ocrDone[q.id];
+    const imgAlreadySaved=!!imgSaved[q.id];
+    const canGoNext=!ocrCompleted; // OCR 완료 상태이면 저장 먼저 해야 다음 이동 가능
+
     return(
       <div style={{background:cv.bg,minHeight:"100vh"}}>
-        {generating&&<Spinner prog={genProg}/>}
+        {generating&&<Spin prog={genProg}/>}
         <NavBar name={stuName} sub={`학번 ${stuId}`}/>
         <div style={{maxWidth:820,margin:"0 auto",padding:"1.8rem 1.2rem 4rem"}}>
           <div style={{textAlign:"center",padding:"1.8rem 1rem 1.6rem",marginBottom:"1.6rem",borderBottom:`2px solid ${cv.border}`}}>
-            <div style={{fontSize:".74rem",letterSpacing:".22em",color:cv.muted,marginBottom:".35rem"}}>고등학교 교과 융합 활동지</div>
+            <div style={{fontSize:".74rem",letterSpacing:".22em",color:cv.muted,marginBottom:".35rem"}}>고등학교 교과 융합 활동지 VPC V4</div>
             <h1 style={{fontWeight:900,fontSize:"1.65rem",color:cv.ink,marginBottom:".45rem"}}>화법과 작문 × 확률과 통계</h1>
             <div style={{display:"flex",gap:".5rem",justifyContent:"center",marginBottom:".75rem"}}>
               <span style={pill(cv.lavLt,cv.lav,cv.lavMd)}>📖 화법과 작문</span>
@@ -1013,6 +1024,7 @@ function App(){
           <div style={{display:"flex",gap:".45rem",flexWrap:"wrap",marginBottom:"1.3rem"}}>
             {questions.map((qq,i)=>{const done=(answers[qq.id]?.text||"").trim().length>=20,active=curQ===i;return<button key={qq.id} onClick={()=>setCurQ(i)} style={{padding:".38rem .88rem",fontSize:".79rem",border:`1.5px solid ${active?cv.lav:done?cv.mint:cv.border2}`,background:active?cv.lav:done?cv.mintLt:"#fff",color:active?"#fff":done?cv.mint:cv.muted,borderRadius:22,cursor:"pointer",fontWeight:700}}>{i+1}. {qq.title}{done?" ✓":""}</button>;})}
           </div>
+
           <div style={{...crd(),marginBottom:"1.1rem",animation:"fadeUp .25s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",marginBottom:".6rem"}}>
               <span style={{fontWeight:900,fontSize:"2rem",color:cv.border2,lineHeight:1}}>0{curQ+1}</span>
@@ -1021,206 +1033,95 @@ function App(){
             <div style={{fontWeight:800,fontSize:"1.08rem",color:cv.ink,marginBottom:".55rem"}}>{q.title}</div>
             {q.rubric.length>0&&<div style={{display:"flex",gap:".35rem",flexWrap:"wrap",marginBottom:".9rem"}}>{q.rubric.map(r=><span key={r} style={pill(cv.peachLt,cv.peachDk,cv.peachMd)}>◆ {r}</span>)}</div>}
 
-            {/* V3: 시/지문 선택 드롭다운 (학생용) */}
-            {hasPoemImages&&(
-              <div style={{marginBottom:"1rem"}}>
-                <div style={{fontSize:".79rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>📜 분석할 시/지문 선택</div>
-                <select style={inp()} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}>
-                  <option value="">-- 시/지문을 선택하세요 --</option>
-                  {(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}
-                </select>
-                {selPoem&&(
-                  <div style={{marginTop:".75rem"}}>
-                    <img src={selPoem.dataUrl} alt={selPoem.label} style={{maxWidth:"100%",borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:400,objectFit:"contain",background:"#f8f9fc"}}/>
-                    <div style={{display:"flex",gap:".6rem",marginTop:".6rem",alignItems:"center"}}>
-                      <span style={{fontSize:".78rem",color:cv.muted}}>{selPoem.label}</span>
-                      <button onClick={()=>runOCR(curQ,selPoem.dataUrl)} disabled={!!ocrLoading[q.id]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem",marginLeft:"auto",opacity:ocrLoading[q.id]?.6:1}}>
-                        {ocrLoading[q.id]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기"}
-                      </button>
+            {/* V4: 조건부 가시성 체크박스 (분석 설정 — 파란색 셀) */}
+            <div style={{background:cv.skyLt,border:`1.5px solid ${cv.skyMd}`,borderRadius:9,padding:".85rem 1rem",marginBottom:"1rem"}}>
+              <div style={{fontWeight:900,fontSize:".9rem",color:cv.skyDk||"#1a6ea8",marginBottom:".6rem"}}>🔵 분석 설정</div>
+              <div style={{display:"flex",gap:"1.2rem",flexWrap:"wrap",marginBottom:".5rem"}}>
+                {[["showMathConcept","📐 수학 개념"],["showPoem","📜 분석할 시"],["showNonFiction","📄 비문학 지문"]].map(([field,label])=>(
+                  <label key={field} style={{display:"flex",alignItems:"center",gap:".4rem",cursor:"pointer",fontWeight:700,fontSize:".86rem",color:cv.ink2}}>
+                    <input type="checkbox" checked={!!ans[field]} onChange={e=>updAns(field,e.target.checked)} style={{accentColor:cv.skyDk||"#1a6ea8",width:15,height:15}}/>
+                    {label}
+                  </label>
+                ))}
+              </div>
+              {/* 수학 개념 선택 시에만 표시 */}
+              {ans.showMathConcept&&(
+                <div style={{marginTop:".7rem",padding:".7rem .9rem",background:"#fff",borderRadius:8,border:`1px solid ${cv.skyMd}`}}>
+                  <div style={{fontWeight:700,fontSize:".83rem",color:cv.skyDk||"#1a6ea8",marginBottom:".35rem"}}>수학 개념 입력</div>
+                  <input style={inp({fontSize:".88rem",padding:".5rem .8rem"})} placeholder="예) 조건부 확률, 베이즈 정리" value={ans.mathConceptText||""} onChange={e=>updAns("mathConceptText",e.target.value)}/>
+                </div>
+              )}
+              {/* 분석할 시 선택 시에만 표시 */}
+              {ans.showPoem&&hasPoemImages&&(
+                <div style={{marginTop:".7rem",padding:".7rem .9rem",background:"#fff",borderRadius:8,border:`1px solid ${cv.skyMd}`}}>
+                  <div style={{fontWeight:700,fontSize:".83rem",color:cv.skyDk||"#1a6ea8",marginBottom:".35rem"}}>📜 분석할 시/지문 선택</div>
+                  <select style={inp({fontSize:".88rem",padding:".5rem .8rem"})} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}>
+                    <option value="">-- 시/지문을 선택하세요 --</option>
+                    {(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}
+                  </select>
+                  {selPoem&&(
+                    <div style={{marginTop:".75rem"}}>
+                      <img src={selPoem.dataUrl} alt={selPoem.label} style={{maxWidth:"100%",borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:400,objectFit:"contain",background:"#f8f9fc"}}/>
+                      <div style={{display:"flex",gap:".6rem",marginTop:".6rem",alignItems:"center"}}>
+                        <span style={{fontSize:".78rem",color:cv.muted}}>{selPoem.label}</span>
+                        <button onClick={()=>runOCR(q.id,selPoem.dataUrl)} disabled={!!ocrLoading[q.id]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem",marginLeft:"auto",opacity:ocrLoading[q.id]?.6:1}}>
+                          {ocrLoading[q.id]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기 (GPT-4o Vision)"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
+              )}
+              {/* 비문학 지문 선택 시에만 표시 */}
+              {ans.showNonFiction&&(
+                <div style={{marginTop:".7rem",padding:".7rem .9rem",background:"#fff",borderRadius:8,border:`1px solid ${cv.skyMd}`}}>
+                  <div style={{fontWeight:700,fontSize:".83rem",color:cv.skyDk||"#1a6ea8",marginBottom:".35rem"}}>비문학 지문 입력/업로드</div>
+                  <textarea style={{...inp(),minHeight:80,resize:"vertical",lineHeight:1.7,fontSize:".88rem",padding:".5rem .8rem"}} placeholder="비문학 지문 내용을 입력하거나 이미지 업로드 후 AI 읽기 기능을 사용하세요..." value={ans.nonFictionText||""} onChange={e=>updAns("nonFictionText",e.target.value)}/>
+                </div>
+              )}
+            </div>
+
+            {/* 탐구 안내 (노란색 셀) */}
+            {q.question&&(
+              <div style={{fontSize:".9rem",lineHeight:1.9,whiteSpace:"pre-line",background:"#fffbf0",borderLeft:"3px solid "+cv.peachMd,padding:".9rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:".75rem"}}>
+                <span style={{fontWeight:900,color:cv.peachDk}}>📌 탐구 안내&nbsp;&nbsp;</span>
+                <span style={{color:cv.ink2}}>{q.question}</span>
+              </div>
+            )}
+            {q.subQuestion&&(
+              <div style={{fontSize:".88rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line",background:"#fffbf0",borderLeft:`3px solid ${cv.peachMd}`,padding:".82rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:"1rem"}}>
+                <span style={{fontWeight:900,color:cv.peachDk}}>{q.subQuestion}</span>
               </div>
             )}
 
-            <div style={{fontSize:".9rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line",background:cv.skyLt,borderLeft:"3px solid "+cv.skyMd,padding:".9rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:".75rem"}}>{q.question}</div>
-            {q.subQuestion&&<div style={{fontSize:".88rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line",background:"#fffbf0",borderLeft:`3px solid ${cv.peachMd}`,padding:".82rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:"1rem"}}>{q.subQuestion}</div>}
             <div style={{fontSize:".79rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>✏️ 활동 답변 작성</div>
             <textarea style={{...inp(),minHeight:140,resize:"vertical",lineHeight:1.9,background:"#fafcff"}} placeholder={q.placeholder||"답변을 입력하세요..."} value={ans.text} maxLength={q.maxLen} onChange={e=>updAns("text",e.target.value)}/>
             <div style={{textAlign:"right",fontSize:".76rem",color:cnt>q.maxLen*.9?cv.rose:cv.muted,marginTop:".25rem",fontWeight:cnt>q.maxLen*.9?700:400}}>{cnt} / {q.maxLen}자</div>
+
+            {/* 활동지 사진 업로드 */}
             <div style={{marginTop:"1.1rem"}}>
               <div style={{fontSize:".79rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>📸 활동지 사진 업로드 <span style={{color:cv.muted,fontWeight:400}}>(선택)</span></div>
-              <StuImgUpload value={ans.imgData} onChange={v=>updAns("imgData",v)}/>
+              <StuImgUpload value={ans.imgData} onChange={v=>{updAns("imgData",v);if(!v){setOcrDone(p=>({...p,[q.id]:false}));setImgSaved(p=>({...p,[q.id]:false}));}}}/>
             </div>
             {ans.imgData&&(
               <div style={{marginTop:"1rem"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".35rem"}}>
                   <div style={{fontSize:".79rem",fontWeight:700,color:cv.ink2}}>📝 이미지 내용 텍스트로 옮겨 작성</div>
-                  <button onClick={()=>runOCR(curQ,ans.imgData)} disabled={!!ocrLoading[q.id]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".76rem",padding:".3rem .8rem",opacity:ocrLoading[q.id]?.6:1}}>
-                    {ocrLoading[q.id]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기"}
-                  </button>
+                  <div style={{display:"flex",gap:".5rem"}}>
+                    {/* V4: OCR 후 저장 인터록 */}
+                    {ocrCompleted&&!imgAlreadySaved&&(
+                      <button onClick={()=>saveImgText(q.id)} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".76rem",padding:".3rem .8rem",animation:"fadeUp .2s ease"}}>
+                        💾 저장하기 (필수)
+                      </button>
+                    )}
+                    <button onClick={()=>runOCR(q.id,ans.imgData)} disabled={!!ocrLoading[q.id]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".76rem",padding:".3rem .8rem",opacity:ocrLoading[q.id]?.6:1}}>
+                      {ocrLoading[q.id]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기 (GPT-4o Vision)"}
+                    </button>
+                  </div>
                 </div>
-                <textarea style={{...inp(),minHeight:95,resize:"vertical",lineHeight:1.8,background:"#fafcff"}} placeholder="업로드한 이미지의 내용을 텍스트로 작성하세요..." value={ans.imgText} onChange={e=>updAns("imgText",e.target.value)}/>
-              </div>
-            )}
-          </div>
-          <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"1.3rem",borderTop:`1.5px solid ${cv.border}`}}>
-            <button disabled={curQ===0} onClick={()=>setCurQ(p=>p-1)} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:22,padding:".54rem 1.2rem",opacity:curQ===0?.35:1}}>← 이전</button>
-            {curQ<questions.length-1
-              ?<button onClick={()=>setCurQ(p=>p+1)} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:22,padding:".54rem 1.2rem"}}>다음 →</button>
-              :<button onClick={submitWS} style={{...btn("linear-gradient(135deg,#c05c1a,#e67e22)"),borderRadius:22,padding:".56rem 1.6rem",fontSize:".95rem"}}>활동지 제출하기 →</button>
-            }
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  /* ════════════════ PAGE: REVIEW ════════════════ */
-  if(page==="review"&&submitted)return(
-    <div style={{background:cv.bg,minHeight:"100vh"}}>
-      {generating&&<Spinner prog={genProg}/>}
-      <NavBar name={submitted.stuName} sub={submitted.at}/>
-      <div style={{maxWidth:820,margin:"0 auto",padding:"1.8rem 1.2rem 4rem"}}>
-        <div style={{textAlign:"center",marginBottom:"1.9rem"}}><h1 style={{fontWeight:800,fontSize:"1.55rem",color:cv.ink,marginBottom:".35rem"}}>활동지 제출 완료 🎉</h1><p style={{fontSize:".88rem",color:cv.muted}}>AI 교세특 생성을 진행하거나 처음으로 돌아갈 수 있습니다</p></div>
-        <div style={{display:"flex",flexDirection:"column",gap:".9rem",marginBottom:"1.6rem"}}>
-          {questions.map(q=>{const ans=submitted.answers[q.id]||{};return(
-            <div key={q.id} style={crd()}>
-              <div style={{background:`linear-gradient(90deg,${cv.lavMd},${cv.mintMd})`,padding:".62rem 1.1rem",margin:"-1.3rem -1.3rem 1rem",display:"flex",justifyContent:"space-between",borderRadius:"11px 11px 0 0"}}>
-                <strong style={{fontSize:".95rem",color:cv.ink}}>{q.title}</strong><span style={{fontSize:".76rem",color:cv.ink2}}>{q.subject}</span>
-              </div>
-              <div style={{fontSize:".9rem",lineHeight:1.9,whiteSpace:"pre-wrap",color:cv.ink2,marginBottom:ans.imgData?".9rem":0}}>{ans.text||"(미작성)"}</div>
-              {ans.imgData&&<div style={{borderRadius:9,overflow:"hidden",border:`1px solid ${cv.border}`}}><img src={ans.imgData} alt="" style={{width:"100%",maxHeight:210,objectFit:"contain",background:"#f8f9fc",display:"block"}}/></div>}
-            </div>
-          );})}
-        </div>
-        <div style={{...crd(),marginBottom:"1.4rem"}}>
-          <div style={{fontWeight:700,fontSize:".95rem",color:cv.ink2,marginBottom:".65rem"}}>📝 교사 추가 관찰 사항 <span style={{fontWeight:400,fontSize:".82rem",color:cv.muted}}>(선택)</span></div>
-          <textarea style={{...inp(),height:82,resize:"vertical",background:"#fafcff",lineHeight:1.75}} placeholder="예) 수업 중 적극적으로 발표하였으며..." value={tNote} onChange={e=>setTNote(e.target.value)}/>
-        </div>
-        <button onClick={generate} disabled={generating} style={{...btn(`linear-gradient(135deg,${cv.lav},${cv.mint})`),width:"100%",padding:".95rem",fontSize:"1rem",borderRadius:11,boxShadow:"0 4px 16px rgba(124,92,191,.22)",opacity:generating?.6:1}}>✦ AI 교세특 자동 생성하기 ✦</button>
-      </div>
-    </div>
-  );
-
-  /* ════════════════ PAGE: RESULT ════════════════ */
-  if(page==="result"&&seteuk&&submitted)return(
-    <div style={{background:cv.bg,minHeight:"100vh"}}>
-      <NavBar/>
-      <div style={{maxWidth:720,margin:"0 auto",padding:"2.2rem 1.2rem 4rem"}}>
-        <div style={{textAlign:"center",marginBottom:"1.9rem"}}>
-          <div style={{display:"flex",alignItems:"center",justifyContent:"center",gap:".65rem",marginBottom:".45rem"}}>
-            <h1 style={{fontWeight:800,fontSize:"1.55rem",color:cv.ink}}>교세특 생성 완료</h1>
-            <span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>✓ 완료</span>
-          </div>
-          <div style={{display:"flex",justifyContent:"center",gap:"1.3rem",fontSize:".84rem",color:cv.muted,flexWrap:"wrap"}}>
-            <span>학생: <strong style={{color:cv.ink2}}>{submitted.stuName}</strong></span>
-            <span>학번: <strong style={{color:cv.ink2}}>{submitted.stuId}</strong></span>
-            <span>생성일: <strong style={{color:cv.ink2}}>{new Date().toLocaleDateString("ko-KR")}</strong></span>
-          </div>
-        </div>
-        <div style={{...crd({padding:"2rem 2.2rem"}),position:"relative",marginBottom:"1.5rem"}}>
-          <div style={{position:"absolute",top:-12,left:"1.3rem",background:cv.lavMd,padding:".1rem .58rem",fontSize:".7rem",fontWeight:700,color:cv.ink,letterSpacing:".1em",borderRadius:20}}>세부능력 및 특기사항</div>
-          <p style={{fontSize:".95rem",lineHeight:2.1,color:cv.ink,whiteSpace:"pre-wrap",wordBreak:"keep-all"}}>{seteuk}</p>
-          <div style={{textAlign:"right",marginTop:".9rem",paddingTop:".75rem",borderTop:`1px solid ${cv.border}`,fontSize:".78rem",color:cv.muted}}>{seteuk.length}자</div>
-        </div>
-        <div style={{display:"flex",gap:".8rem",flexWrap:"wrap"}}>
-          <button onClick={()=>navigator.clipboard.writeText(seteuk).then(()=>alert("클립보드에 복사되었습니다!")).catch(()=>alert("복사 실패"))} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),flex:1,padding:".78rem",minWidth:100}}>📋 클립보드 복사</button>
-          <button onClick={()=>{setSeteuk(null);setPage("review");}} style={{...btn("#fff",cv.ink),border:`1.5px solid ${cv.border2}`,flex:1,padding:".78rem",minWidth:100}}>↺ 다시 생성</button>
-          <button onClick={reset} style={{...btn("#fff",cv.muted),border:`1px solid ${cv.border}`,flex:1,padding:".78rem",minWidth:100}}>처음으로</button>
-        </div>
-      </div>
-    </div>
-  );
-
-  return null;
-}
-
-/* ══════════════ 서브 컴포넌트 ══════════════ */
-
-/* V3: 다중 시/지문 이미지 관리 (교사용) */
-function PoemImageManager({images,onChange}){
-  const ref=useRef();
-  const [editIdx,setEditIdx]=useState(null);
-  const [labelInput,setLabelInput]=useState("");
-
-  const addImage=e=>{
-    const f=e.target.files[0];if(!f)return;
-    if(images.length>=3){alert("최대 3개까지 등록 가능합니다.");return;}
-    const r=new FileReader();
-    r.onload=ev=>{
-      const newImg={dataUrl:ev.target.result,label:`시/지문 ${images.length+1}`};
-      onChange([...images,newImg]);
-    };
-    r.readAsDataURL(f);
-    e.target.value="";
-  };
-  const removeImage=i=>{const n=[...images];n.splice(i,1);onChange(n);};
-  const saveLabel=(i)=>{const n=[...images];n[i]={...n[i],label:labelInput};onChange(n);setEditIdx(null);};
-
-  return(
-    <div>
-      <div style={{display:"flex",flexDirection:"column",gap:".6rem",marginBottom:".6rem"}}>
-        {images.map((img,i)=>(
-          <div key={i} style={{display:"flex",alignItems:"center",gap:".7rem",background:cv.bg,borderRadius:8,padding:".6rem .85rem",border:`1px solid ${cv.border}`}}>
-            <img src={img.dataUrl} alt="" style={{width:52,height:40,objectFit:"cover",borderRadius:6,border:`1px solid ${cv.border2}`,flexShrink:0}}/>
-            {editIdx===i
-              ?<input autoFocus style={{...inp(),flex:1,fontSize:".84rem",padding:".35rem .65rem"}} value={labelInput} onChange={e=>setLabelInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter")saveLabel(i);if(e.key==="Escape")setEditIdx(null);}}/>
-              :<span style={{flex:1,fontSize:".85rem",fontWeight:600,color:cv.ink2}}>{img.label}</span>
-            }
-            {editIdx===i
-              ?<button onClick={()=>saveLabel(i)} style={{...btn(cv.lav),fontSize:".75rem",padding:".3rem .7rem"}}>확인</button>
-              :<button onClick={()=>{setEditIdx(i);setLabelInput(img.label);}} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".75rem",padding:".3rem .65rem"}}>이름 수정</button>
-            }
-            <button onClick={()=>removeImage(i)} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".75rem",padding:".3rem .65rem"}}>삭제</button>
-          </div>
-        ))}
-      </div>
-      {images.length<3&&(
-        <label style={{display:"flex",alignItems:"center",gap:".5rem",padding:".65rem 1rem",background:cv.lavLt,border:`1.5px dashed ${cv.lavMd}`,borderRadius:8,cursor:"pointer",fontSize:".84rem",color:cv.lav,fontWeight:700}}>
-          <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={addImage}/>
-          📎 시/지문 이미지 추가 ({images.length}/3)
-        </label>
-      )}
-      <div style={{fontSize:".73rem",color:cv.muted,marginTop:".4rem"}}>등록된 이미지는 학생 활동지에서 드롭다운으로 선택 가능합니다.</div>
-    </div>
-  );
-}
-
-function StuImgUpload({value,onChange}){
-  const ref=useRef();
-  const hf=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>onChange(ev.target.result);r.readAsDataURL(f);e.target.value="";};
-  return(
-    <div>
-      {value
-        ?<div style={{position:"relative",width:"100%",marginBottom:".4rem"}}>
-           <img src={value} alt="" style={{maxWidth:"100%",maxHeight:230,borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block"}}/>
-           <button onClick={()=>onChange(null)} style={{position:"absolute",top:6,right:6,background:"rgba(0,0,0,.55)",border:"none",borderRadius:"50%",width:26,height:26,color:"#fff",cursor:"pointer",fontSize:".9rem",display:"flex",alignItems:"center",justifyContent:"center"}}>✕</button>
-         </div>
-        :<div onClick={()=>ref.current.click()} style={{border:`1.5px dashed ${cv.border2}`,borderRadius:9,padding:"1.2rem",textAlign:"center",cursor:"pointer",background:"#fafcff",color:cv.muted,fontSize:".86rem",lineHeight:1.7}}>
-           📷 활동지 사진을 업로드하세요<br/><span style={{fontSize:".76rem"}}>이미지 파일 (jpg, png 등)</span>
-         </div>
-      }
-      <input ref={ref} type="file" accept="image/*" style={{display:"none"}} onChange={hf}/>
-    </div>
-  );
-}
-
-function CompCheck({label,items,sel,onChange}){
-  const tog=item=>onChange(sel.includes(item)?sel.filter(x=>x!==item):[...sel,item]);
-  return(
-    <div style={{background:"#f8f9fc",borderRadius:9,padding:".72rem .88rem",border:`1px solid ${cv.border}`}}>
-      <div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".45rem"}}>{label}</div>
-      {items.map(item=>(
-        <label key={item} style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".82rem",color:sel.includes(item)?cv.lav:cv.ink2,fontWeight:sel.includes(item)?700:400,marginBottom:".3rem"}}>
-          <input type="checkbox" checked={sel.includes(item)} onChange={()=>tog(item)} style={{accentColor:cv.lav}}/>{item}
-        </label>
-      ))}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
-</script>
-</body>
-</html>
+                {ocrCompleted&&!imgAlreadySaved&&(
+                  <div style={{fontSize:".77rem",color:cv.peachDk,fontWeight:700,marginBottom:".4rem",padding:".45rem .75rem",background:cv.peachLt,borderRadius:7,border:`1px solid ${cv.peachMd}`}}>
+                    ⚠️ AI 이미지 읽기가 완료되었습니다. <strong>[💾 저장하기]</strong> 버튼을 눌러야 다음 활동으로 이동할 수 있습니다.
+                  </div>
+                )}
+                <textarea style={{...inp(),minHeight:95,resize:"vertical",lineHeight:1.8,background:"#fafcff"}} placeholder="이미지 내용을 텍스트로
