@@ -195,8 +195,12 @@ function App(){
   /* OCR */
   const [ocrLoading,setOcrLoading]=useState({});
   /* 2.4 인터록: OCR 완료 후 저장 전까지 다음 비활성 */
-  const [ocrDone,setOcrDone]=useState({});   // {qId: true} OCR 완료됨
-  const [ocrSaved,setOcrSaved]=useState({});  // {qId: true} 저장 완료됨
+  const [ocrDone,setOcrDone]=useState({});
+  const [ocrSaved,setOcrSaved]=useState({});
+  /* 2.3 조건부 가시성 (최상단으로 이동) */
+  const [showMath,setShowMath]=useState(false);
+  const [showPoem,setShowPoem]=useState(false);
+  const [showNonFic,setShowNonFic]=useState(false);
 
   useEffect(()=>{setSetkExtras(prev=>questions.map((_,i)=>prev[i]||mkAct()));
   },[questions.length]);
@@ -1027,11 +1031,6 @@ function App(){
     /* 2.4 인터록: OCR 완료됐으나 아직 저장 안 한 경우 다음 비활성 */
     const needsSave=ocrDone[qid]&&!ocrSaved[qid];
     const isLast=curQ===questions.length-1;
-
-    /* 2.3 조건부 가시성: 체크박스 */
-    const [showMath,setShowMath]=useState(!!(ans.mathConcept));
-    const [showPoem,setShowPoem]=useState(hasPoemImages||!!(ans.poemSel));
-    const [showNonFic,setShowNonFic]=useState(!!(ans.nonFic));
 
     return(
       <div style={{background:cv.bg,minHeight:"100vh"}}>
