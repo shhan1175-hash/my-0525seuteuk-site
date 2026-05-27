@@ -1096,61 +1096,79 @@ function App(){
             <div style={{fontWeight:800,fontSize:"1.08rem",color:cv.ink,marginBottom:".55rem"}}>{q.title}</div>
             {q.rubric.length>0&&<div style={{display:"flex",gap:".35rem",flexWrap:"wrap",marginBottom:".9rem"}}>{q.rubric.map(r=><span key={r} style={pill(cv.peachLt,cv.peachDk,cv.peachMd)}>◆ {r}</span>)}</div>}
 
-            {/* 분석 설정 영역 */}
-            <div style={{background:cv.skyLt,border:`1.5px solid ${cv.skyMd}`,borderRadius:10,padding:".85rem 1rem",marginBottom:"1rem"}}>
-              <div style={{fontWeight:800,fontSize:".88rem",color:"#1a5f8a",marginBottom:".7rem"}}>📋 분석 설정</div>
-              <div style={{display:"flex",gap:"1rem",flexWrap:"wrap",marginBottom:".6rem"}}>
-                <label style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".87rem",fontWeight:600,color:cv.ink2}}>
-                  <input type="checkbox" checked={showMath} onChange={e=>setShowMath(e.target.checked)} style={{accentColor:cv.lav,width:15,height:15}}/> 수학 개념
-                </label>
-                {hasPoemImages&&(
-                  <label style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".87rem",fontWeight:600,color:cv.ink2}}>
-                    <input type="checkbox" checked={showPoem} onChange={e=>setShowPoem(e.target.checked)} style={{accentColor:cv.lav,width:15,height:15}}/> 분석할 시
-                  </label>
-                )}
-                <label style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".87rem",fontWeight:600,color:cv.ink2}}>
-                  <input type="checkbox" checked={showNonFic} onChange={e=>setShowNonFic(e.target.checked)} style={{accentColor:cv.lav,width:15,height:15}}/> 비문학 지문
-                </label>
-              </div>
-              {showMath&&(
-                <div style={{marginBottom:".6rem"}}>
-                  <div style={{fontWeight:800,fontSize:".82rem",color:"#1a5f8a",marginBottom:".28rem"}}>수학 개념 메모</div>
-                  <input style={{...inp(),fontSize:".88rem",background:"#fff"}} placeholder="예) 조건부 확률, 베이즈 정리..." value={ans.mathConcept||""} onChange={e=>updAns("mathConcept",e.target.value)}/>
-                </div>
-              )}
-              {showPoem&&hasPoemImages&&(
-                <div style={{marginBottom:".6rem"}}>
-                  <div style={{fontWeight:800,fontSize:".82rem",color:"#1a5f8a",marginBottom:".28rem"}}>분석할 시/지문 선택</div>
-                  <select style={inp()} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}>
-                    <option value="">-- 시/지문을 선택하세요 --</option>
-                    {(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}
-                  </select>
-                  {selPoem&&(
-                    <div style={{marginTop:".65rem"}}>
-                      <img src={selPoem.dataUrl} alt={selPoem.label} style={{maxWidth:"100%",borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:400,objectFit:"contain",background:"#f8f9fc"}}/>
-                      <div style={{display:"flex",gap:".6rem",marginTop:".6rem",alignItems:"center"}}>
-                        <span style={{fontSize:".78rem",color:cv.muted}}>{selPoem.label}</span>
-                        <button onClick={()=>runOCR(curQ,selPoem.dataUrl)} disabled={!!ocrLoading[qid]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem",marginLeft:"auto",opacity:ocrLoading[qid]?.6:1}}>
+            {/* ── 지문/시 이미지: 등록된 경우 항상 표시 ── */}
+            {hasPoemImages&&(
+              <div style={{background:cv.skyLt,border:`1.5px solid ${cv.skyMd}`,borderRadius:10,padding:".85rem 1rem",marginBottom:"1rem"}}>
+                <div style={{fontWeight:800,fontSize:".88rem",color:"#1a5f8a",marginBottom:".6rem"}}>📜 지문 / 시</div>
+                {(q.poemImages||[]).length===1
+                  /* 이미지 1개 → 바로 표시 */
+                  ?<div>
+                      <img src={q.poemImages[0].dataUrl} alt={q.poemImages[0].label}
+                        style={{maxWidth:"100%",borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:480,objectFit:"contain",background:"#f8f9fc"}}/>
+                      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:".55rem"}}>
+                        <span style={{fontSize:".8rem",color:cv.muted,fontWeight:600}}>{q.poemImages[0].label}</span>
+                        <button onClick={()=>runOCR(curQ,q.poemImages[0].dataUrl)} disabled={!!ocrLoading[qid]}
+                          style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem",opacity:ocrLoading[qid]?.6:1}}>
                           {ocrLoading[qid]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기 (GPT-4o)"}
                         </button>
                       </div>
                     </div>
-                  )}
-                </div>
-              )}
-              {showNonFic&&(
-                <div>
-                  <div style={{fontWeight:800,fontSize:".82rem",color:"#1a5f8a",marginBottom:".28rem"}}>비문학 지문 메모</div>
-                  <textarea style={{...inp(),minHeight:70,resize:"vertical",lineHeight:1.75,background:"#fff",fontSize:".88rem"}} placeholder="비문학 지문의 핵심 내용을 간략히 적어두세요..." value={ans.nonFic||""} onChange={e=>updAns("nonFic",e.target.value)}/>
-                </div>
+                  /* 이미지 2~3개 → 드롭다운 선택 */
+                  :<div>
+                      <select style={inp()} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}>
+                        <option value="">-- 지문 / 시를 선택하세요 --</option>
+                        {(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}
+                      </select>
+                      {selPoem&&(
+                        <div style={{marginTop:".75rem"}}>
+                          <img src={selPoem.dataUrl} alt={selPoem.label}
+                            style={{maxWidth:"100%",borderRadius:9,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:480,objectFit:"contain",background:"#f8f9fc"}}/>
+                          <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:".55rem"}}>
+                            <span style={{fontSize:".8rem",color:cv.muted,fontWeight:600}}>{selPoem.label}</span>
+                            <button onClick={()=>runOCR(curQ,selPoem.dataUrl)} disabled={!!ocrLoading[qid]}
+                              style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".35rem .85rem",opacity:ocrLoading[qid]?.6:1}}>
+                              {ocrLoading[qid]?"⏳ 읽는 중...":"🔍 AI 이미지 읽기 (GPT-4o)"}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                }
+              </div>
+            )}
+
+            {/* ── 탐구 안내 (문항내용 + 추가문항) — 항상 표시, Bold ── */}
+            <div style={{background:"#fffbf0",borderLeft:`3px solid ${cv.peachMd}`,padding:".9rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:"1rem"}}>
+              <div style={{fontWeight:800,fontSize:".84rem",color:cv.peachDk,marginBottom:".5rem"}}>📌 탐구 안내</div>
+              <div style={{fontWeight:700,fontSize:".92rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line"}}>{q.question}</div>
+              {q.subQuestion&&(
+                <div style={{fontWeight:700,fontSize:".9rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line",marginTop:".6rem",paddingTop:".6rem",borderTop:`1px dashed ${cv.peachMd}`}}>{q.subQuestion}</div>
               )}
             </div>
 
-            {/* 탐구 안내 — Bold */}
-            <div style={{fontSize:".9rem",lineHeight:1.9,color:cv.ink2,whiteSpace:"pre-line",background:"#fffbf0",borderLeft:`3px solid ${cv.peachMd}`,padding:".9rem 1.1rem",borderRadius:"0 9px 9px 0",marginBottom:".75rem"}}>
-              <div style={{fontWeight:800,fontSize:".84rem",color:cv.peachDk,marginBottom:".35rem"}}>📌 탐구 안내</div>
-              <div style={{fontWeight:700}}>{q.question}</div>
-              {q.subQuestion&&<div style={{fontWeight:700,marginTop:".55rem",whiteSpace:"pre-line"}}>{q.subQuestion}</div>}
+            {/* ── 선택적 분석 메모 (체크박스로 열고 닫기) ── */}
+            <div style={{background:cv.skyLt,border:`1.5px solid ${cv.skyMd}`,borderRadius:10,padding:".75rem 1rem",marginBottom:"1rem"}}>
+              <div style={{fontWeight:800,fontSize:".84rem",color:"#1a5f8a",marginBottom:".55rem"}}>📋 분석 메모 <span style={{fontSize:".76rem",fontWeight:400,color:cv.muted}}>(선택 입력)</span></div>
+              <div style={{display:"flex",gap:"1rem",flexWrap:"wrap",marginBottom:".4rem"}}>
+                <label style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".86rem",fontWeight:600,color:cv.ink2}}>
+                  <input type="checkbox" checked={showMath} onChange={e=>setShowMath(e.target.checked)} style={{accentColor:cv.lav,width:15,height:15}}/> 수학 개념
+                </label>
+                <label style={{display:"flex",alignItems:"center",gap:".38rem",cursor:"pointer",fontSize:".86rem",fontWeight:600,color:cv.ink2}}>
+                  <input type="checkbox" checked={showNonFic} onChange={e=>setShowNonFic(e.target.checked)} style={{accentColor:cv.lav,width:15,height:15}}/> 비문학 지문
+                </label>
+              </div>
+              {showMath&&(
+                <div style={{marginTop:".5rem"}}>
+                  <div style={{fontWeight:700,fontSize:".81rem",color:"#1a5f8a",marginBottom:".25rem"}}>수학 개념 메모</div>
+                  <input style={{...inp(),fontSize:".88rem",background:"#fff"}} placeholder="예) 조건부 확률, 베이즈 정리..." value={ans.mathConcept||""} onChange={e=>updAns("mathConcept",e.target.value)}/>
+                </div>
+              )}
+              {showNonFic&&(
+                <div style={{marginTop:".5rem"}}>
+                  <div style={{fontWeight:700,fontSize:".81rem",color:"#1a5f8a",marginBottom:".25rem"}}>비문학 지문 메모</div>
+                  <textarea style={{...inp(),minHeight:70,resize:"vertical",lineHeight:1.75,background:"#fff",fontSize:".88rem"}} placeholder="비문학 지문의 핵심 내용을 간략히..." value={ans.nonFic||""} onChange={e=>updAns("nonFic",e.target.value)}/>
+                </div>
+              )}
             </div>
 
             <div style={{fontSize:".79rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>✏️ 활동 답변 작성</div>
