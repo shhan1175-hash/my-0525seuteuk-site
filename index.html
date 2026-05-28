@@ -45,23 +45,21 @@ function AG({value,onChange,placeholder,style={},minH=52}){
   return <textarea ref={r} className="ag" value={value||""} onChange={onChange} placeholder={placeholder} style={{minHeight:minH,...style}}/>;
 }
 
-/* ══════════════ Firebase Realtime Database (인증 불필요!) ══════════════ */
-const FB={
-  _url(dbUrl){return dbUrl.replace(/\/+$/,"")+"/vpc.json";},
-  async load(dbUrl){
-    const res=await fetch(FB._url(dbUrl));
+const JBIN={
+  async load(apiKey,binId){
+    const res=await fetch(`https://api.jsonbin.io/v3/b/${binId}/latest`,{headers:{"X-Master-Key":apiKey,"X-Bin-Meta":"false"}});
     if(!res.ok)throw new Error(`불러오기 실패 (${res.status})`);
-    const d=await res.json();
-    return d||{};
+    return await res.json();
   },
-  async save(dbUrl,data){
-    const res=await fetch(FB._url(dbUrl),{
-      method:"PUT",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(data),
-    });
+  async save(apiKey,binId,data){
+    const res=await fetch(`https://api.jsonbin.io/v3/b/${binId}`,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":apiKey},body:JSON.stringify(data)});
     if(!res.ok)throw new Error(`저장 실패 (${res.status})`);
     return await res.json();
+  },
+  async create(apiKey,initData){
+    const res=await fetch("https://api.jsonbin.io/v3/b",{method:"POST",headers:{"Content-Type":"application/json","X-Master-Key":apiKey,"X-Bin-Name":"VPC_Seteuk_V6"},body:JSON.stringify(initData)});
+    if(!res.ok)throw new Error(`Bin 생성 실패 (${res.status})`);
+    const d=await res.json();return d.metadata.id;
   },
 };
 
@@ -85,10 +83,10 @@ const INIT_ROSTER=[
 ];
 const DEF_Q=[
   {id:"q1",subject:"확률과 통계",title:"🀄 조건부 확률 알아보기",maxLen:600,poemImages:[],videoUrl:"https://youtu.be/CiqWjmqDiIs?si=yelK39RiBnNT_3t4",question:"조건부 확률에 대해 알아보고, 이와 연계된 베이즈 정리의 역확률 문제에 대해 탐구해보자\n1)조건부 확률 이란?",subQuestions:["",""],placeholder:"조건부 확률이란...",rubric:["통계 해석 정확성","발표 도입부 구성","주장의 논리성","표현의 명확성"]},
-  {id:"q2",subject:"확률과 통계",title:"🤩 사람의 감정을 확률로 판단할 수 있을까? 🤩",maxLen:500,poemImages:[],videoUrl:"https://youtu.be/Y4ecU7NkiEI?si=paQVSycwaRRcYkGZ",question:"1-1) 어떤 사람이 상대방에게 호감이 있어서 초콜릿을 줄 확률은 40% 이다.\n어떤 사람이 상대방에게 호감이 없지만 \"예의상\" 초콜릿을 줄 확률은 30%이다.\n이에 대해 상황에서 사건을 설정하고 수학적 기호로 표현해보자",subQuestions:[""],placeholder:"사건을 설정하면...",rubric:["경우의 수 정확성","서사 구성력","수학과 이야기의 통합","창의성"]},
-  {id:"q3",subject:"화법과 작문",title:"🏳️‍🌈 오늘의 시 🏳️‍🌈 <즐거운 편지>에 나타난 '조건부 확률 계산하기'",maxLen:700,poemImages:[],videoUrl:"",question:"Q1) 이 시에서 찾을 수 있는 다양한 사건을 정리해 봅시다.\n사건A: 그대가 한없이 괴로움 속을 헤매인다.\n사건B: 내가 오랫동안 전해 오던 아사소함으로 그대를 부른다.",subQuestions:["","",""],placeholder:"사건을 정리하면...",rubric:["발표문 구조","통계 근거 활용","설득력","논리적 흐름"]},
+  {id:"q2",subject:"확률과 통계",title:"🤩 사람의 감정을 확률로 판단할 수 있을까? 🤩",maxLen:500,poemImages:[],videoUrl:"https://youtu.be/Y4ecU7NkiEI?si=paQVSycwaRRcYkGZ",question:"1-1) 🤗 😊 어떤 사람이 상대방에게 호감이 있어서 초콜릿을 줄 확률은 40% 이다.\n어떤 사람이 상대방에게 호감이 없지만 \"예의상\" 초콜릿을 줄 확률은 30%이다.\n이에 대해 상황에서 사건을 설정하고 수학적 기호로 표현해보자",subQuestions:[""],placeholder:"사건을 설정하면...",rubric:["경우의 수 정확성","서사 구성력","수학과 이야기의 통합","창의성"]},
+  {id:"q3",subject:"화법과 작문",title:"🏳️‍🌈 오늘의 시 🏳️‍🌈 <즐거운 편지>에 나타난 '조건부 확률 계산하기'",maxLen:700,poemImages:[],videoUrl:"",question:"Q1) 이 시에서 찾을 수 있는 다양한 사건을 정리해 봅시다. (예: 내가 그대를 생각한다.)\n사건A: 그대가 한없이 괴로움 속을 헤매인다.\n사건B: 내가 오랫동안 전해 오던 아사소함으로 그대를 부른다.",subQuestions:["","",""],placeholder:"사건을 정리하면...",rubric:["발표문 구조","통계 근거 활용","설득력","논리적 흐름"]},
   {id:"q4",subject:"화법과 작문",title:"🏳️‍🌈 오늘의 시 🏳️‍🌈 <꽃>에 나타난 '나만의 조건부 확률 만들기'",maxLen:500,poemImages:[],videoUrl:"",question:"Q1)이 시에서 이름을 부르는 것의 의미는 무엇인가요?\n\nQ2)이 시에 나타난 인식의 점층적 확대 과정을 3단계로 구분해 설명해 보세요.",subQuestions:["","",""],placeholder:"이 시에서...",rubric:["베이즈 정리 적용","계산 정확성","대화 형식","개념 이해도"]},
-  {id:"q5",subject:"화법과 작문",title:"설정한 조건에 맞게 🌟 '시 재구성하기' 🌟",maxLen:500,poemImages:[],videoUrl:"",question:"1)재구성 계획하기\n- 사건 ㄱ 사건A:\n  └ 사건B:",subQuestions:["",""],placeholder:"재구성 계획은...",rubric:["평가항목"]},
+  {id:"q5",subject:"화법과 작문",title:"설정한 조건에 맞게 🌟 '시 재구성하기' 🌟 내가 설정한 조건에 따라 몇 개의 구절을 선택하여 다른 관점으로 재구성하기",maxLen:500,poemImages:[],videoUrl:"",question:"1)재구성 계획하기\n- 사건 ㄱ 사건A:\n  └ 사건B:",subQuestions:["",""],placeholder:"재구성 계획은...",rubric:["평가항목"]},
 ];
 
 async function compressImage(dataUrl,maxW=600,quality=0.7){
@@ -104,18 +102,24 @@ async function compressImage(dataUrl,maxW=600,quality=0.7){
     img.onerror=()=>resolve(dataUrl);img.src=dataUrl;
   });
 }
+
 async function prepareQuestionsForSave(qs){
   return Promise.all((qs||[]).map(async q=>({
-    ...q,poemImages:await Promise.all((q.poemImages||[]).map(async img=>({...img,dataUrl:img.dataUrl?await compressImage(img.dataUrl):""})))
+    ...q,
+    poemImages:await Promise.all((q.poemImages||[]).map(async img=>({
+      ...img,dataUrl:img.dataUrl?await compressImage(img.dataUrl):""
+    })))
   })));
 }
+
+/* ★ 수정: function 선언 추가 */
 function migrateQ(q){
   if(!q||typeof q!=="object")return{...DEF_Q[0],id:"q"+Date.now()};
   return{
     id:q.id||"q"+Date.now(),subject:q.subject||"",title:q.title||"새 문항",
     maxLen:Number(q.maxLen)||500,poemImages:Array.isArray(q.poemImages)?q.poemImages:[],
     videoUrl:q.videoUrl||"",question:q.question||"",
-    subQuestions:Array.isArray(q.subQuestions)?q.subQuestions:[],
+    subQuestions:Array.isArray(q.subQuestions)?q.subQuestions:(q.subQuestion?String(q.subQuestion).split("\n").filter(Boolean):[]),
     placeholder:q.placeholder||"",rubric:Array.isArray(q.rubric)?q.rubric:[],
   };
 }
@@ -210,13 +214,11 @@ function App(){
   const [tab,setTab]=useState("home");
   const [sideOpen,setSideOpen]=useState(false);
   const sideRef=useRef(null);const triggerRef=useRef(null);
-
-  /* ── Firebase Realtime Database 설정 (API Key 불필요!) ── */
-  const [dbUrl,setDbUrl]=useState(()=>LC.get("fb_url",""));
-  const [dbStatus,setDbStatus]=useState("");
-  const dbEnabled=!!dbUrl;
-  const [syncMsg,setSyncMsg]=useState("");
-
+  const [jbKey,setJbKey]=useState(()=>LC.get("jb_key",""));
+  const [jbBinId,setJbBinId]=useState(()=>LC.get("jb_binid",""));
+  const [jbPublicBinId,setJbPublicBinId]=useState(()=>LC.get("jb_public_binid",""));
+  const [jbStatus,setJbStatus]=useState("");
+  const jbEnabled=!!(jbKey&&jbBinId);
   const [roster,setRoster]=useState(INIT_ROSTER);
   const [questions,setQuestions]=useState(DEF_Q);
   const [submissions,setSubmissions]=useState([]);
@@ -231,7 +233,7 @@ function App(){
   const [rootUrl,setRootUrl]=useState("");
   const [attSaved,setAttSaved]=useState(false);
   const [driveSaved,setDriveSaved]=useState(false);
-
+  const [syncMsg,setSyncMsg]=useState("");
   const [expandedQ,setExpandedQ]=useState(null);const [savedQ,setSavedQ]=useState(false);
   const [newPw,setNewPw]=useState("");
   const [seteuk,setSeteuk]=useState(null);const [generating,setGenerating]=useState(false);
@@ -244,6 +246,7 @@ function App(){
   const [ocrLoading,setOcrLoading]=useState({});const [ocrDone,setOcrDone]=useState({});const [ocrSaved,setOcrSaved]=useState({});
   const [showMath,setShowMath]=useState(false);const [showNonFic,setShowNonFic]=useState(false);
   const [addModal,setAddModal]=useState(false);const [addForm,setAddForm]=useState({id:"",name:""});const [addErr,setAddErr]=useState("");
+  const qSaveTimer=useRef(null);
 
   const localFallback=()=>({
     roster:LC.get("lc_roster",INIT_ROSTER),questions:LC.get("lc_questions",DEF_Q),
@@ -272,20 +275,30 @@ function App(){
   useEffect(()=>{
     (async()=>{
       setLoading(true);
-      /* URL ?bin=DB_URL 파라미터 → 학생 기기 자동 세팅 */
-      const urlBin=new URLSearchParams(window.location.search).get("bin");
-      if(urlBin){LC.set("fb_url",urlBin);setDbUrl(urlBin);}
-      const bid=urlBin||LC.get("fb_url","");
-      if(bid){
+      /* ★ URL ?bin=XXXX&key=YYYY 파라미터 → 학생 기기 자동 세팅 */
+      const _up=new URLSearchParams(window.location.search);
+      const urlBin=_up.get("bin");
+      const urlKey=_up.get("key");
+      if(urlBin){LC.set("jb_public_binid",urlBin);LC.set("jb_binid",urlBin);setJbPublicBinId(urlBin);setJbBinId(urlBin);}
+      if(urlKey){try{const k=atob(urlKey);LC.set("jb_key",k);setJbKey(k);}catch{}}
+
+      const savedKey=urlKey?atob(urlKey):LC.get("jb_key","");
+      const savedBin=urlBin||LC.get("jb_binid","");
+      const publicBin=urlBin||LC.get("jb_public_binid","");
+      if(savedKey&&savedBin){
         try{
-          const d=await FB.load(bid);
-          applyData(d);
+          const d=await JBIN.load(savedKey,savedBin);applyData(d);
+          if(d.publicBinId){setJbPublicBinId(d.publicBinId);LC.set("jb_public_binid",d.publicBinId);}
           setSetkDashStu(Array.isArray(d.roster)&&d.roster.length>0?d.roster[0].id:INIT_ROSTER[0].id);
-          setDbStatus("ok");setLoading(false);return;
-        }catch(e){
-          console.warn("Firebase 로드 실패:",e.message);
-          setDbStatus("error");
-        }
+          setJbStatus("ok");setLoading(false);return;
+        }catch(e){console.warn("JSONBin(full) 로드 실패:",e.message);setJbStatus("error");}
+      }
+      const binToTry=publicBin||savedBin;
+      if(binToTry){
+        try{
+          const res=await fetch(`https://api.jsonbin.io/v3/b/${binToTry}/latest`,{headers:{"X-Bin-Meta":"false",...(savedKey?{"X-Master-Key":savedKey}:{})}});
+          if(res.ok){const d=await res.json();applyData(d);setSetkDashStu(Array.isArray(d.roster)&&d.roster.length>0?d.roster[0].id:INIT_ROSTER[0].id);setJbStatus("ok");setLoading(false);return;}
+        }catch(e){console.warn("JSONBin(public) 로드 실패:",e.message);}
       }
       applyData(localFallback());
       setSetkDashStu(LC.get("lc_roster",INIT_ROSTER)[0]?.id||INIT_ROSTER[0].id);
@@ -294,7 +307,6 @@ function App(){
   },[]);
 
   useEffect(()=>{setSetkExtras(prev=>questions.map((_,i)=>prev[i]||mkAct()));},[questions.length]);
-  useEffect(()=>{if(loading)return;LC.set("lc_questions",questions);},[questions]);
 
   const snapshot=useCallback((overrides={})=>({
     roster,questions,submissions,att,attNote,setkStore,teacher1,teacher2,globalPrompts,apiKeys,aiEngine,
@@ -307,21 +319,19 @@ function App(){
     const lcMap={roster:"lc_roster",questions:"lc_questions",submissions:"lc_submissions",att:"lc_att",attNote:"lc_attNote",setkStore:"lc_setkStore",teacher1:"lc_teacher1",teacher2:"lc_teacher2",globalPrompts:"lc_globalPrompts",apiKeys:"lc_apiKeys",aiEngine:"lc_aiEngine",driveUrls:"lc_driveUrls",rootUrl:"lc_rootUrl"};
     Object.entries(lcMap).forEach(([k,lk])=>{if(data[k]!==undefined)LC.set(lk,data[k]);});
     LC.set("lc_teacherPw",data.teacherPw||"1234");
-    if(blobEnabled){
-      try{
-        await JBLOB.save(blobId,data);
-        setSyncMsg("✓ 서버 저장됨");setTimeout(()=>setSyncMsg(""),2000);
-      }catch(e){
-        setSyncMsg("⚠ 저장 실패: "+e.message);setTimeout(()=>setSyncMsg(""),5000);throw e;
-      }
+    if(jbEnabled){
+      try{await JBIN.save(jbKey,jbBinId,data);setSyncMsg("✓ 서버 저장됨");setTimeout(()=>setSyncMsg(""),2000);}
+      catch(e){setSyncMsg("⚠ 저장 실패: "+e.message);setTimeout(()=>setSyncMsg(""),5000);throw e;}
     }
-  },[snapshot,blobEnabled,blobId]);
+  },[snapshot,jbEnabled,jbKey,jbBinId]);
+
+  useEffect(()=>{if(loading)return;LC.set("lc_questions",questions);},[questions]);
 
   const syncFromServer=async()=>{
-    if(!blobEnabled){alert("Blob ID를 먼저 입력하세요.");return;}
-    setBlobStatus("syncing");setSyncMsg("서버에서 불러오는 중...");
-    try{const d=await JBLOB.load(blobId);applyData(d);setBlobStatus("ok");setSyncMsg("✓ 동기화 완료");setTimeout(()=>setSyncMsg(""),3000);}
-    catch(e){setBlobStatus("error");setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),5000);}
+    if(!jbEnabled){alert("JSONBin API Key와 Bin ID를 먼저 입력하세요.");return;}
+    setJbStatus("syncing");setSyncMsg("서버에서 불러오는 중...");
+    try{const d=await JBIN.load(jbKey,jbBinId);applyData(d);setJbStatus("ok");setSyncMsg("✓ 서버 동기화 완료");setTimeout(()=>setSyncMsg(""),3000);}
+    catch(e){setJbStatus("error");setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),5000);}
   };
 
   const isFloatTab=!FIXED_TABS.has(tab);
@@ -536,7 +546,7 @@ function App(){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:".7rem"}}>
             {syncMsg&&<span style={{fontSize:".75rem",color:"rgba(255,255,255,.9)",fontWeight:700}}>{syncMsg}</span>}
-            {blobEnabled&&<button onClick={syncFromServer} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".75rem"}}>🔄 동기화</button>}
+            {jbEnabled&&<button onClick={syncFromServer} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".75rem"}}>🔄 동기화</button>}
             <button onClick={()=>{setPage("login");setPwInput("");}} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".76rem"}}>로그아웃</button>
           </div>
         </div>
@@ -553,14 +563,14 @@ function App(){
 
             {tab==="home"&&(<>
               <div style={{fontWeight:800,fontSize:"1.25rem",marginBottom:"1.2rem",color:cv.ink}}>🏠 홈 대시보드</div>
-              <div style={{...crd({background:dbEnabled?(dbStatus==="ok"?cv.mintLt:dbStatus==="error"?cv.roseLt:cv.lavLt):cv.peachLt,border:`1.5px solid ${dbEnabled?(dbStatus==="ok"?cv.mintMd:dbStatus==="error"?cv.roseMd:cv.lavMd):cv.peachMd}`}),marginBottom:"1.2rem"}}>
+              <div style={{...crd({background:jbEnabled?(jbStatus==="ok"?cv.mintLt:jbStatus==="error"?cv.roseLt:cv.lavLt):cv.peachLt,border:`1.5px solid ${jbEnabled?(jbStatus==="ok"?cv.mintMd:jbStatus==="error"?cv.roseMd:cv.lavMd):cv.peachMd}`}),marginBottom:"1.2rem"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:".5rem"}}>
                   <div>
-                    <div style={{fontWeight:700,fontSize:".9rem",color:cv.ink,marginBottom:".2rem"}}>{dbEnabled?(dbStatus==="ok"?"✅ 서버 연결됨":dbStatus==="error"?"⚠️ 서버 연결 오류":"🔄 연결 중..."):"⚠️ 서버 미연결 — 환경설정에서 Firebase 설정 필요"}</div>
-                    <div style={{fontSize:".78rem",color:cv.muted}}>{dbEnabled?"Firebase 서버 동기화 활성":"환경설정 → Firebase 설정 후 학생 공유 링크 복사"}</div>
+                    <div style={{fontWeight:700,fontSize:".9rem",color:cv.ink,marginBottom:".2rem"}}>{jbEnabled?(jbStatus==="ok"?"✅ 서버 연결됨 — 모든 기기에서 동일한 데이터":jbStatus==="error"?"⚠️ 서버 연결 오류":"🔄 서버 연결 중..."):"⚠️ 서버 미연결 — 이 기기에만 저장됨"}</div>
+                    <div style={{fontSize:".78rem",color:cv.muted}}>{jbEnabled?"JSONBin.io 서버 동기화 활성 · 여러 선생님·기기에서 동일한 데이터 공유":"환경설정에서 JSONBin API Key를 입력하면 모든 기기에서 동기화됩니다"}</div>
                   </div>
-                  {dbEnabled&&<button onClick={syncFromServer} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".8rem",padding:".4rem .9rem"}}>🔄 동기화</button>}
-                  {!dbEnabled&&<button onClick={()=>setTab("settings")} style={{...btn(`linear-gradient(135deg,#c05c1a,#e67e22)`),fontSize:".8rem",padding:".4rem .9rem"}}>⚙️ 지금 설정하기</button>}
+                  {jbEnabled&&<button onClick={syncFromServer} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".8rem",padding:".4rem .9rem"}}>🔄 지금 동기화</button>}
+                  {!jbEnabled&&<button onClick={()=>setTab("settings")} style={{...btn(`linear-gradient(135deg,#c05c1a,#e67e22)`),fontSize:".8rem",padding:".4rem .9rem"}}>⚙️ 서버 설정하기</button>}
                 </div>
               </div>
               <div className="stats-grid" style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:".9rem",marginBottom:"1.5rem"}}>
@@ -645,6 +655,7 @@ function App(){
                     <th style={{padding:".55rem .7rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2}}>이름</th>
                     {questions.map((_,i)=>(<th key={i} style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:74}}>활동{i+1}</th>))}
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📸 마스터</th>
+                    <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📁 드라이브</th>
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:90}}>📂 폴더</th>
                     <th style={{padding:".55rem .7rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:85}}>종합</th>
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:55}}>열람</th>
@@ -655,8 +666,11 @@ function App(){
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,color:cv.muted,fontSize:".76rem"}}>{s.no}</td>
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,fontFamily:"monospace",fontWeight:700,fontSize:".78rem"}}>{s.id}</td>
                       <td style={{padding:".4rem .7rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700}}>{s.name}</td>
-                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span></td>);})}
+                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".2rem"}}><span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span>{subm&&<button onClick={()=>{if(window.confirm("초기화?")){{const ns=submissions.map(ss=>{if(ss.stuId!==s.id)return ss;const na={...ss.answers};delete na[q.id];return{...ss,answers:na};});setSubmissions(ns);pushToServer({submissions:ns});}}}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".62rem",padding:".08rem .35rem",borderRadius:4}}>↺</button>}</div></td>);})}
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{hasMasterPhoto(s.id)?<span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>✓</span>:<span style={pill(cv.bg,cv.muted,cv.border2)}>미</span>}</td>
+                      <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
+                        <div onClick={async()=>{const n={...driveUrls};if(typeof n[s.id]==="boolean")delete n[s.id];else n[s.id]=true;setDriveUrls(n);}} style={{...pill(driveUrls[s.id]?"#e0f9ec":cv.bg,driveUrls[s.id]?"#1a7a46":cv.muted,driveUrls[s.id]?"#7ad9a0":cv.border2),cursor:"pointer",justifyContent:"center"}}>{driveUrls[s.id]?"✓":"✕"}</div>
+                      </td>
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
                         {typeof driveUrls[s.id]==="string"&&driveUrls[s.id].startsWith("http")
                           ?<a href={driveUrls[s.id]} target="_blank" rel="noreferrer" style={{...pill("#e8f9f0","#1a7a46","#7ad9a0"),textDecoration:"none"}}>📂 {s.name}</a>
@@ -683,8 +697,8 @@ function App(){
                 <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:"1.2rem",flexWrap:"wrap",gap:".6rem"}}>
                   <div style={{fontWeight:800,fontSize:"1.25rem",color:cv.ink}}>✏️ 문항설정</div>
                   <div style={{display:"flex",alignItems:"center",gap:".6rem"}}>
-                    <span style={{fontSize:".76rem",color:savedQ?cv.mint:cv.muted,fontWeight:savedQ?700:400}}>{savedQ?"✓ 저장됨 (학생 화면에 반영됨)":""}</span>
-                    <button onClick={async()=>{setSavedQ(true);setTimeout(()=>setSavedQ(false),2500);await pushToServer({questions});}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".38rem .9rem"}}>💾 문항 저장 → 학생 화면 반영</button>
+                    <span style={{fontSize:".76rem",color:savedQ?cv.mint:cv.muted,fontWeight:savedQ?700:400}}>{savedQ?`✓ 저장됨${jbEnabled?" (서버 — 모든 기기 반영)":""}`:""}</span>
+                    <button onClick={async()=>{setSavedQ(true);setTimeout(()=>setSavedQ(false),2500);await pushToServer({questions});}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".38rem .9rem"}}>💾 문항 저장 (서버 반영)</button>
                   </div>
                 </div>
                 <div style={{display:"flex",flexDirection:"column",gap:".9rem"}}>
@@ -705,11 +719,12 @@ function App(){
                         <div style={{borderTop:`1px solid ${cv.border}`,paddingTop:"1rem",marginTop:".6rem",display:"flex",flexDirection:"column",gap:".85rem"}}>
                           <div><div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>① 교과목</div><input style={inp()} value={q.subject} onChange={e=>upd(idx,{subject:e.target.value})}/></div>
                           <div>
-                            <div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>🎬 학습 영상 URL</div>
+                            <div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>🎬 학습 영상 URL <span style={{fontWeight:400,color:cv.muted}}>(유튜브 등, 선택)</span></div>
                             <div style={{display:"flex",gap:".4rem"}}>
                               <input style={{...inp(),flex:1}} placeholder="https://www.youtube.com/watch?v=..." value={q.videoUrl} onChange={e=>upd(idx,{videoUrl:e.target.value})}/>
                               {q.videoUrl&&<button onClick={()=>upd(idx,{videoUrl:""})} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".76rem",padding:".5rem .7rem",flexShrink:0}}>✕</button>}
                             </div>
+                            {q.videoUrl&&<div style={{fontSize:".72rem",color:cv.mint,fontWeight:700,marginTop:".25rem"}}>✓ 학생 화면에 [▶ 영상보기] 버튼 표시됨</div>}
                           </div>
                           <div><div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>② 지문/시 이미지 (최대 3개)</div><PoemImageManager images={q.poemImages} onChange={imgs=>upd(idx,{poemImages:imgs})}/></div>
                           <div><div style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>③ 문항 내용</div><textarea style={{...inp(),minHeight:80,resize:"vertical",lineHeight:1.75}} value={q.question} onChange={e=>upd(idx,{question:e.target.value})}/></div>
@@ -795,7 +810,7 @@ function App(){
                   <div><div style={{fontWeight:800,fontSize:"1.25rem",color:cv.ink}}>📊 학생별 세특</div><div style={{fontSize:".8rem",color:cv.muted,marginTop:".15rem"}}>셀 직접 편집 · 자동 서버 저장</div></div>
                   <button onClick={exportSetkCsv} style={{...btn("linear-gradient(135deg,#1e7e34,#27ae60)"),fontSize:".83rem",padding:".5rem 1rem"}}>📊 엑셀 내보내기</button>
                 </div>
-                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`}}>
+                <div style={{overflowX:"auto",borderRadius:12,border:`1.5px solid ${cv.border}`,boxShadow:"0 2px 12px rgba(124,92,191,.08)"}}>
                   <table style={{width:"100%",borderCollapse:"collapse",fontSize:".82rem",minWidth:780}}>
                     <thead><tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
                       <th style={{padding:".65rem .9rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:80,position:"sticky",left:0,background:"linear-gradient(90deg,#e0d8ff,#d8d0ff)",zIndex:2}}>학생</th>
@@ -820,59 +835,39 @@ function App(){
 
             {tab==="settings"&&(<>
               <div style={{fontWeight:800,fontSize:"1.25rem",marginBottom:"1.2rem",color:cv.ink}}>⚙️ 환경설정</div>
-
-              {/* ★ Firebase Realtime Database 설정 */}
-              <div style={{...crd({background:dbEnabled?cv.mintLt:cv.peachLt,border:`2px solid ${dbEnabled?cv.mintMd:cv.peachMd}`}),marginBottom:"1.2rem"}}>
-                <div style={{fontWeight:800,marginBottom:".6rem",fontSize:"1rem",color:cv.ink}}>🔥 Firebase 서버 설정 <span style={{...pill(cv.mintLt,cv.mint,cv.mintMd),fontSize:".7rem",marginLeft:".4rem"}}>무료 · API Key 불필요</span></div>
-
-                {/* 설정 안내 */}
-                <div style={{fontSize:".83rem",lineHeight:1.9,marginBottom:"1rem",background:"rgba(255,255,255,.9)",padding:".85rem 1rem",borderRadius:9,border:`1px solid ${cv.mintMd}`}}>
-                  <strong>⏱ 5분이면 완료됩니다:</strong><br/>
-                  1. <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" style={{color:cv.lav,fontWeight:700}}>console.firebase.google.com</a> 접속 (Google 계정으로 로그인)<br/>
-                  2. <strong>프로젝트 만들기</strong> → 이름 입력 → 계속 → 프로젝트 만들기<br/>
-                  3. 왼쪽 메뉴 <strong>빌드 → Realtime Database</strong> → <strong>데이터베이스 만들기</strong><br/>
-                  4. 위치: 기본값 → <strong>테스트 모드로 시작</strong> 선택 → 사용 설정<br/>
-                  5. 표시되는 URL 복사 (예: <code style={{background:"#f0f4ff",padding:".1rem .3rem",borderRadius:4,fontSize:".78rem"}}>https://my-app-rtdb.firebaseio.com</code>)<br/>
-                  6. 아래 칸에 붙여넣기 → <strong>연결 테스트</strong> 클릭
+              <div style={{...crd({background:jbEnabled?cv.mintLt:cv.peachLt,border:`1.5px solid ${jbEnabled?cv.mintMd:cv.peachMd}`}),marginBottom:".9rem"}}>
+                <div style={{fontWeight:700,marginBottom:".6rem",fontSize:".97rem"}}>🌐 서버 동기화 설정 (JSONBin.io)</div>
+                <div style={{fontSize:".8rem",color:cv.ink2,lineHeight:1.7,marginBottom:".9rem",background:"rgba(255,255,255,.7)",padding:".65rem .85rem",borderRadius:8}}>
+                  <strong>설정 방법:</strong><br/>1. <a href="https://jsonbin.io" target="_blank" rel="noreferrer" style={{color:cv.lav,fontWeight:700}}>jsonbin.io</a> 접속 → 무료 회원가입<br/>2. 대시보드에서 <strong>API Keys</strong> 클릭 → <strong>Secret Key</strong> 복사<br/>3. 아래 입력란에 붙여넣기 후 <strong>[Bin 생성]</strong> 버튼 클릭<br/>4. 생성된 Bin ID를 모든 선생님 기기의 같은 칸에 입력하면 끝!
                 </div>
-
-                <div style={{marginBottom:"1rem"}}>
-                  <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>Firebase Database URL</div>
-                  <input style={{...inp(),fontFamily:"monospace",fontSize:".85rem"}} placeholder="https://my-project-default-rtdb.firebaseio.com" value={dbUrl} onChange={e=>{setDbUrl(e.target.value.trim());LC.set("fb_url",e.target.value.trim());}}/>
+                <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem",marginBottom:".8rem"}}>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>JSONBin Secret Key</div><input type="password" style={inp()} placeholder="$2a$10$..." value={jbKey} onChange={e=>{setJbKey(e.target.value);LC.set("jb_key",e.target.value);}}/><div style={{fontSize:".71rem",color:cv.muted,marginTop:".2rem"}}>이 기기에만 저장됩니다 (보안)</div></div>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>Bin ID</div><input style={inp()} placeholder="64자리 hex ID" value={jbBinId} onChange={e=>{setJbBinId(e.target.value);LC.set("jb_binid",e.target.value);}}/><div style={{fontSize:".71rem",color:cv.muted,marginTop:".2rem"}}>모든 선생님이 동일한 Bin ID 입력</div></div>
                 </div>
-
-                {/* 학생 공유 링크 */}
-                {dbUrl&&(<div style={{marginBottom:"1rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
-                  <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".4rem"}}>📱 학생 공유 링크 (이것만 공유하면 끝!)</div>
-                  <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
-                    <input readOnly style={{...inp(),flex:1,fontSize:".72rem",background:"#fff",fontFamily:"monospace"}} value={`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`}/>
-                    <button onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`).then(()=>alert("✅ 링크 복사됨!\n\n카카오톡이나 구글 클래스룸으로 학생들에게 공유하세요.\n\n학생이 이 링크로 접속하면:\n✓ 선생님 문항 자동 표시\n✓ 제출한 답변 선생님께 전달")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 복사</button>
-                  </div>
-                </div>)}
-
+                {/* ★ 학생 공유 링크 */}
+                {(jbBinId&&jbKey)&&(()=>{
+                  const shareUrl=`${window.location.origin}${window.location.pathname}?bin=${jbBinId}&key=${btoa(jbKey)}`;
+                  return(<div style={{marginBottom:".9rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
+                    <div style={{fontWeight:800,fontSize:".95rem",color:cv.mint,marginBottom:".5rem"}}>📱 학생 공유 링크 <span style={{fontSize:".72rem",fontWeight:400,color:cv.muted}}>(이 링크로 접속하면 문항 자동 로드 + 답변 서버 저장)</span></div>
+                    <div style={{fontSize:".78rem",color:cv.ink2,marginBottom:".55rem",lineHeight:1.7,background:"rgba(255,255,255,.8)",padding:".5rem .75rem",borderRadius:7}}>
+                      ✅ 이 링크 하나로 해결됩니다:<br/>
+                      · 선생님이 설정한 <strong>문항 자동 로드</strong><br/>
+                      · 학생 답변 <strong>서버에 저장</strong> (선생님이 제출현황에서 확인 가능)
+                    </div>
+                    <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
+                      <input readOnly style={{...inp(),flex:1,fontSize:".72rem",background:"#fff",color:cv.ink2,fontFamily:"monospace"}} value={shareUrl}/>
+                      <button onClick={()=>navigator.clipboard.writeText(shareUrl).then(()=>alert("✅ 링크 복사됨!\n\n카카오톡, 구글 클래스룸 등으로 학생들에게 공유하세요.")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 링크 복사</button>
+                    </div>
+                    <div style={{fontSize:".72rem",color:"#c05c1a",fontWeight:700,marginTop:".4rem"}}>⚠️ 이 링크는 학생 전용입니다. 외부에 공개하지 마세요.</div>
+                  </div>);
+                })()}
                 <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
-                  <button onClick={async()=>{
-                    if(!dbUrl){alert("Firebase URL을 먼저 입력하세요.");return;}
-                    setSyncMsg("연결 테스트 중...");
-                    try{
-                      await FB.save(dbUrl,{...snapshot(),_test:true});
-                      setDbStatus("ok");setSyncMsg("✓ 연결 성공!");setTimeout(()=>setSyncMsg(""),3000);
-                      alert("✅ Firebase 연결 성공!\n\n이제 위의 [📋 복사] 버튼으로\n학생들에게 링크를 공유하세요!");
-                    }catch(e){
-                      setDbStatus("error");setSyncMsg("");
-                      alert("❌ 연결 실패: "+e.message+"\n\nFirebase URL을 다시 확인하세요.\n(테스트 모드로 설정했는지 확인)");
-                    }
-                  }} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".88rem",padding:".6rem 1.2rem",fontWeight:800}}>🔗 연결 테스트</button>
-                  <button onClick={syncFromServer} disabled={!dbEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:dbEnabled?1:.5}}>🔄 서버에서 불러오기</button>
-                  <button onClick={async()=>{
-                    if(!dbEnabled){alert("Firebase URL을 먼저 입력하세요.");return;}
-                    if(!window.confirm("현재 데이터를 서버에 강제 저장할까요?"))return;
-                    await pushToServer();alert("✅ 서버 저장 완료");
-                  }} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,fontSize:".84rem",padding:".5rem 1.1rem"}}>💾 서버에 저장하기</button>
+                  <button onClick={async()=>{if(!jbKey){alert("Secret Key를 먼저 입력하세요.");return;}try{const id=await JBIN.create(jbKey,{roster,questions,submissions,att,attNote,setkStore,teacher1,teacher2,globalPrompts,apiKeys,aiEngine,teacherPw:teacherPwServer,driveUrls,rootUrl});setJbBinId(id);LC.set("jb_binid",id);setJbStatus("ok");alert(`✅ Bin 생성 완료!\n\nBin ID: ${id}\n\n이 ID를 모든 선생님 기기의 'Bin ID' 칸에 입력하세요.`);}catch(e){alert("생성 실패: "+e.message);}}} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".84rem",padding:".5rem 1.1rem"}}>📦 Bin 생성 (처음 설정 시)</button>
+                  <button onClick={syncFromServer} disabled={!jbEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:jbEnabled?1:.5}}>🔄 서버에서 불러오기</button>
+                  <button onClick={async()=>{if(!jbEnabled){alert("Key와 Bin ID를 먼저 입력하세요.");return;}if(!window.confirm("현재 데이터를 서버에 강제 저장할까요?"))return;await pushToServer();alert("✅ 서버 저장 완료");}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,fontSize:".84rem",padding:".5rem 1.1rem"}}>💾 서버에 저장하기</button>
                 </div>
-                {dbEnabled&&dbStatus==="ok"&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ Firebase 연결됨 — 문항 변경 시 [💾 문항 저장] 버튼을 눌러 학생 화면에 반영하세요</div>}
+                {jbEnabled&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ 서버 연결됨 — 데이터 변경 시 자동으로 서버에 저장됩니다</div>}
               </div>
-
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".97rem"}}>👨‍🏫 교사 프로필</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem",marginBottom:"1rem"}}>
@@ -885,13 +880,19 @@ function App(){
                   <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div><input style={inp()} placeholder="화법과 작문" value={teacher2.subject} onChange={e=>{const n={...teacher2,subject:e.target.value};setTeacher2(n);pushToServer({teacher2:n});}}/></div>
                 </div>)}
               </div>
-
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".97rem"}}>🤖 AI API Key</div>
-                {[["Claude","claude","sk-ant-api03-..."],["Gemini","gemini","AIzaSy..."],["ChatGPT + OCR","openai","sk-proj-..."]].map(([label,field,ph])=>(<div key={field} style={{marginBottom:".8rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{label}</div><input type="password" style={inp()} placeholder={ph} value={apiKeys[field]||""} onChange={e=>{const n={...apiKeys,[field]:e.target.value};setApiKeys(n);pushToServer({apiKeys:n});}}/></div>))}
+                <div style={{fontSize:".78rem",color:cv.muted,marginBottom:".9rem",lineHeight:1.6,background:cv.lavLt,padding:".6rem .85rem",borderRadius:8,border:`1px solid ${cv.lavMd}`}}><strong>Claude:</strong> x-api-key &nbsp;·&nbsp; <strong>Gemini:</strong> ?key= &nbsp;·&nbsp; <strong>ChatGPT+OCR:</strong> Bearer (GPT-4o Vision)</div>
+                {[["Claude","claude","sk-ant-api03-..."],["Gemini","gemini","AIzaSy..."],["ChatGPT + OCR (GPT-4o Vision)","openai","sk-proj-..."]].map(([label,field,ph])=>(<div key={field} style={{marginBottom:".8rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{label}</div><input type="password" style={inp()} placeholder={ph} value={apiKeys[field]||""} onChange={e=>{const n={...apiKeys,[field]:e.target.value};setApiKeys(n);pushToServer({apiKeys:n});}}/></div>))}
                 <div style={{marginTop:".4rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>현재 AI 엔진</div><div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>{AI_ENGINES.map(eng=>(<label key={eng} style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer",padding:".35rem .7rem",borderRadius:8,border:`1.5px solid ${aiEngine===eng?cv.lav:cv.border2}`,background:aiEngine===eng?cv.lavLt:"#fff",fontWeight:aiEngine===eng?700:400,fontSize:".82rem",color:aiEngine===eng?cv.lav:cv.ink2}}><input type="radio" name="ae2" value={eng} checked={aiEngine===eng} onChange={()=>{setAiEngine(eng);pushToServer({aiEngine:eng});}} style={{accentColor:cv.lav}}/>{eng}</label>))}</div></div>
               </div>
-
+              <div style={{...crd(),marginBottom:".9rem"}}>
+                <div style={{fontWeight:700,marginBottom:".4rem",fontSize:".97rem"}}>📋 활동별 전역 AI 지시문</div>
+                <div style={{fontSize:".78rem",color:cv.muted,marginBottom:".8rem",lineHeight:1.6,background:"#fffdf0",padding:".6rem .85rem",borderRadius:7,border:`1px solid ${cv.peachMd}`}}>각 활동별 AI 페르소나, 서술어 어미 제한 등을 설정합니다. 학생 화면 미노출 · 세특 생성 시 자동 삽입</div>
+                <div style={{display:"flex",flexDirection:"column",gap:".7rem"}}>
+                  {questions.map((q,i)=>(<div key={q.id||i}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>Q{i+1} — {q.title}</div><textarea style={{...inp(),minHeight:72,resize:"vertical",lineHeight:1.7,background:"#fffdf0",border:`1.5px solid ${cv.peachMd}`}} placeholder="예) 3인칭 서술, '-하였음.' 어미 사용, 수학 역량 강조..." value={(globalPrompts[i]||{}).text||""} onChange={e=>{const n=questions.map((_,j)=>({id:questions[j]?.id||j,text:j===i?e.target.value:(globalPrompts[j]||{}).text||""}));setGlobalPrompts(n);pushToServer({globalPrompts:n});}}/></div>))}
+                </div>
+              </div>
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".97rem"}}>🔒 비밀번호 변경</div>
                 <div style={{display:"flex",gap:".6rem",alignItems:"flex-end"}}>
@@ -935,7 +936,7 @@ function App(){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:".5rem",flexShrink:0,background:cv.lavLt,border:`1.5px solid ${cv.lavMd}`,borderRadius:22,padding:".32rem .85rem"}}>
             <span style={{fontSize:".88rem",fontWeight:900,color:cv.lav}}>{stuName}</span>
-            <span style={{fontSize:".72rem",color:cv.muted}}>·</span>
+            <span style={{fontSize:".72rem",color:cv.muted,fontWeight:400}}>·</span>
             <span style={{fontSize:".85rem",fontWeight:800,color:cv.ink2,fontFamily:"monospace"}}>{stuId}</span>
           </div>
         </div>
@@ -965,7 +966,7 @@ function App(){
               <div style={{fontWeight:800,fontSize:".85rem",color:"#1a5f8a",marginBottom:".55rem"}}>📜 지문 / 시</div>
               {(q.poemImages||[]).length===1
                 ?<div><img src={q.poemImages[0].dataUrl} alt="" style={{maxWidth:"100%",borderRadius:8,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:420,objectFit:"contain"}}/><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:".5rem"}}><span style={{fontSize:".78rem",color:cv.muted}}>{q.poemImages[0].label}</span><button onClick={()=>runOCR(curQ,q.poemImages[0].dataUrl)} disabled={!!ocrLoading[mOcrKey]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".32rem .8rem",opacity:ocrLoading[mOcrKey]?.6:1}}>{ocrLoading[mOcrKey]?"⏳":"🔍 AI 읽기"}</button></div></div>
-                :<div><select style={inp()} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}><option value="">-- 선택 --</option>{(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}</select>{selPoem&&(<div style={{marginTop:".65rem"}}><img src={selPoem.dataUrl} alt="" style={{maxWidth:"100%",borderRadius:8,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:420,objectFit:"contain"}}/></div>)}</div>
+                :<div><select style={inp()} value={ans.poemSel||""} onChange={e=>updAns("poemSel",e.target.value)}><option value="">-- 선택 --</option>{(q.poemImages||[]).map((pi,i)=><option key={i} value={pi.label}>{pi.label}</option>)}</select>{selPoem&&(<div style={{marginTop:".65rem"}}><img src={selPoem.dataUrl} alt="" style={{maxWidth:"100%",borderRadius:8,border:`1.5px solid ${cv.border}`,display:"block",maxHeight:420,objectFit:"contain"}}/><div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginTop:".5rem"}}><span style={{fontSize:".78rem",color:cv.muted}}>{selPoem.label}</span><button onClick={()=>runOCR(curQ,selPoem.dataUrl)} disabled={!!ocrLoading[mOcrKey]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".32rem .8rem",opacity:ocrLoading[mOcrKey]?.6:1}}>{ocrLoading[mOcrKey]?"⏳":"🔍 AI 읽기"}</button></div></div>)}</div>
               }
             </div>)}
             <div style={{background:"#fffbf0",borderLeft:`3px solid ${cv.peachMd}`,padding:".85rem 1rem",borderRadius:"0 9px 9px 0",marginBottom:".9rem"}}>
@@ -983,6 +984,7 @@ function App(){
                   const subKey=`${qid}_sub${si}`;const subImg=(ans.subImgs||{})[si]||null;const subTxt=(ans.subImgTexts||{})[si]||"";
                   return(<div key={si} style={{background:"#f8f4ff",border:`1.5px solid ${cv.lavMd}`,borderRadius:10,padding:".8rem .95rem"}}>
                     <div style={{fontWeight:800,fontSize:".84rem",color:cv.lav,marginBottom:".3rem"}}>{si+1}) {sq}</div>
+                    <div style={{fontSize:".76rem",color:cv.muted,marginBottom:".55rem"}}>수기 풀이·탐구 사진 업로드</div>
                     <ImgUpload value={subImg} onChange={v=>{setAnswers(p=>({...p,[qid]:{...(p[qid]||{}),subImgs:{...((p[qid]||{}).subImgs||{}),[si]:v}}}));if(!v){setOcrDone(pr=>({...pr,[subKey]:false}));setOcrSaved(pr=>({...pr,[subKey]:false}));}}} label="📷 수기 답변 사진"/>
                     {subImg&&(<div style={{marginTop:".6rem"}}>
                       <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:".3rem"}}><span style={{fontSize:".77rem",fontWeight:700,color:cv.ink2}}>OCR 결과</span><button onClick={()=>runOCR(curQ,subImg,si)} disabled={!!ocrLoading[subKey]} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".74rem",padding:".28rem .75rem",opacity:ocrLoading[subKey]?.6:1}}>{ocrLoading[subKey]?"⏳":"🔍 AI 읽기"}</button></div>
@@ -999,11 +1001,23 @@ function App(){
               <ImgUpload value={masterPhoto} onChange={v=>setAnswers(p=>({...p,_masterPhoto:v}))} label="📷 활동지 전체 사진"/>
               {masterPhoto&&<div style={{marginTop:".45rem",fontSize:".77rem",color:cv.mint,fontWeight:700}}>✅ 마스터 사진 첨부 완료</div>}
             </div>
+            <div style={{background:cv.skyLt,border:`1.5px solid ${cv.skyMd}`,borderRadius:10,padding:".72rem .95rem"}}>
+              <div style={{fontWeight:800,fontSize:".82rem",color:"#1a5f8a",marginBottom:".4rem"}}>📋 분석 메모 <span style={{fontSize:".73rem",fontWeight:400,color:cv.muted}}>(선택)</span></div>
+              <div style={{display:"flex",gap:".9rem",flexWrap:"wrap",marginBottom:".38rem"}}>
+                <label style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer",fontSize:".84rem",fontWeight:600,color:cv.ink2}}><input type="checkbox" checked={showMath} onChange={e=>setShowMath(e.target.checked)} style={{accentColor:cv.lav,width:14,height:14}}/> 수학 개념</label>
+                <label style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer",fontSize:".84rem",fontWeight:600,color:cv.ink2}}><input type="checkbox" checked={showNonFic} onChange={e=>setShowNonFic(e.target.checked)} style={{accentColor:cv.lav,width:14,height:14}}/> 비문학 지문</label>
+              </div>
+              {showMath&&(<div style={{marginTop:".45rem"}}><div style={{fontWeight:700,fontSize:".79rem",color:"#1a5f8a",marginBottom:".22rem"}}>수학 개념 메모</div><input style={{...inp(),fontSize:".86rem",background:"#fff"}} placeholder="예) 조건부 확률..." value={ans.mathConcept||""} onChange={e=>updAns("mathConcept",e.target.value)}/></div>)}
+              {showNonFic&&(<div style={{marginTop:".45rem"}}><div style={{fontWeight:700,fontSize:".79rem",color:"#1a5f8a",marginBottom:".22rem"}}>비문학 지문 메모</div><textarea style={{...inp(),minHeight:65,resize:"vertical",lineHeight:1.75,background:"#fff",fontSize:".86rem"}} value={ans.nonFic||""} onChange={e=>updAns("nonFic",e.target.value)} placeholder="핵심 내용..."/></div>)}
+            </div>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"1.1rem",borderTop:`1.5px solid ${cv.border}`}}>
             <button disabled={curQ===0} onClick={()=>{setCurQ(p=>p-1);setVideoOpen(false);}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem",opacity:curQ===0?.35:1}}>← 이전</button>
-            {!isLast?<button onClick={()=>{setCurQ(p=>p+1);setVideoOpen(false);}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem"}}>다음 →</button>
-            :<button onClick={submitWS} style={{...btn("linear-gradient(135deg,#c05c1a,#e67e22)"),borderRadius:20,padding:".52rem 1.5rem",fontSize:".92rem"}}>활동지 제출하기 →</button>}
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:".3rem"}}>
+              {(needsSave||subNeedsSave)&&<span style={{fontSize:".73rem",color:cv.peachDk,fontWeight:700}}>⚠️ 저장 후 이동 가능</span>}
+              {!isLast?<button onClick={()=>{setCurQ(p=>p+1);setVideoOpen(false);}} disabled={needsSave||subNeedsSave} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem",opacity:(needsSave||subNeedsSave)?.35:1}}>다음 →</button>
+              :<button onClick={submitWS} disabled={needsSave||subNeedsSave} style={{...btn("linear-gradient(135deg,#c05c1a,#e67e22)"),borderRadius:20,padding:".52rem 1.5rem",fontSize:".92rem",opacity:(needsSave||subNeedsSave)?.35:1}}>활동지 제출하기 →</button>}
+            </div>
           </div>
         </div>
       </div>
@@ -1034,7 +1048,7 @@ function App(){
         <span onClick={reset} style={{fontWeight:800,fontSize:".95rem",cursor:"pointer",color:cv.ink}}>화법과 작문 × 확률과 통계</span>
       </div>
       <div style={{maxWidth:680,margin:"0 auto",padding:"2rem 1rem 4rem"}}>
-        <div style={{textAlign:"center",marginBottom:"1.6rem"}}><h1 style={{fontWeight:800,fontSize:"1.45rem",color:cv.ink,marginBottom:".3rem"}}>교세특 생성 완료</h1></div>
+        <div style={{textAlign:"center",marginBottom:"1.6rem"}}><h1 style={{fontWeight:800,fontSize:"1.45rem",color:cv.ink,marginBottom:".3rem"}}>교세특 생성 완료</h1><div style={{display:"flex",justifyContent:"center",gap:"1.2rem",fontSize:".82rem",color:cv.muted,flexWrap:"wrap"}}><span>학생: <strong style={{color:cv.ink2}}>{submitted.stuName}</strong></span><span>학번: <strong style={{color:cv.ink2}}>{submitted.stuId}</strong></span></div></div>
         <div style={{...crd({padding:"1.8rem 2rem"}),position:"relative",marginBottom:"1.3rem"}}>
           <div style={{position:"absolute",top:-11,left:"1.2rem",background:cv.lavMd,padding:".08rem .55rem",fontSize:".68rem",fontWeight:700,color:cv.ink,borderRadius:18}}>세부능력 및 특기사항</div>
           <p style={{fontSize:".92rem",lineHeight:2.05,color:cv.ink,whiteSpace:"pre-wrap",wordBreak:"keep-all"}}>{seteuk}</p>
