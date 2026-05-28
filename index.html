@@ -62,9 +62,10 @@ function AG({value,onChange,placeholder,style={},minH=52}){
 }
 
 /* ══════════════ 서버 저장소 (window.storage shared) ══════════════ */
-const STORAGE_KEY={
+/* 모든 기기·버전 공통 저장 키 — DB.get/set 호출 시 이 상수를 직접 사용 */
+const SK={
   roster:"shared_roster_v1",
-  questions:"shared_questions_v1",   // 모든 기기·버전 공통 키
+  questions:"shared_questions_v1",
   submissions:"shared_submissions_v1",
   att:"shared_att_v1",
   attNote:"shared_attNote_v1",
@@ -76,14 +77,27 @@ const STORAGE_KEY={
   aiEngine:"shared_aiEngine_v1",
   teacherPw:"shared_teacherPw_v1",
 };
+/* window.storage 사용 가능 여부 감지 */
+const HAS_WS=typeof window!=="undefined"&&typeof window.storage?.get==="function"&&typeof window.storage?.set==="function";
+
 const DB={
   async get(key,fallback){
-    try{const r=await window.storage.get(STORAGE_KEY[key]||key,true);return r?JSON.parse(r.value):fallback;}
+    if(HAS_WS){
+      try{const r=await window.storage.get(key,true);return r?JSON.parse(r.value):fallback;}
+      catch{/* fall through */}
+    }
+    /* localStorage 폴백 */
+    try{const v=localStorage.getItem(key);return v!=null?JSON.parse(v):fallback;}
     catch{return fallback;}
   },
   async set(key,val){
-    try{await window.storage.set(STORAGE_KEY[key]||key,JSON.stringify(val),true);}
-    catch(e){console.error("storage.set",e);}
+    if(HAS_WS){
+      try{await window.storage.set(key,JSON.stringify(val),true);return;}
+      catch(e){console.error("storage.set(shared) failed:",e);}
+    }
+    /* localStorage 폴백 */
+    try{localStorage.setItem(key,JSON.stringify(val));}
+    catch(e){console.error("localStorage.set failed:",e);}
   },
 };
 /* 로컬 캐시 (폴백) */
@@ -257,18 +271,18 @@ function App(){
     (async()=>{
       setLoading(true);
       const [r,q,s,a,an,sk,t1,t2,gp,ak,ae,pw]=await Promise.all([
-        DB.get("roster",INIT_ROSTER),
-        DB.get("questions",DEF_Q),
-        DB.get("submissions",[]),
-        DB.get("att",{}),
-        DB.get("attNote",{}),
-        DB.get("setkStore",{}),
-        DB.get("teacher1",{name:"",subject:""}),
-        DB.get("teacher2",{name:"",subject:"",enabled:false}),
-        DB.get("globalPrompts",DEF_Q.map(q=>({id:q.id,text:""}))),
-        DB.get("apiKeys",{claude:"",gemini:"",openai:""}),
-        DB.get("aiEngine","Claude"),
-        DB.get("teacherPw","1234"),
+        DB.get(SK.roster,INIT_ROSTER),
+        DB.get(SK.questions,DEF_Q),
+        DB.get(SK.submissions,[]),
+        DB.get(SK.att,{}),
+        DB.get(SK.attNote,{}),
+        DB.get(SK.setkStore,{}),
+        DB.get(SK.teacher1,{name:"",subject:""}),
+        DB.get(SK.teacher2,{name:"",subject:"",enabled:false}),
+        DB.get(SK.globalPrompts,DEF_Q.map(q=>({id:q.id,text:""}))),
+        DB.get(SK.apiKeys,{claude:"",gemini:"",openai:""}),
+        DB.get(SK.aiEngine,"Claude"),
+        DB.get(SK.teacherPw,"1234"),
       ]);
       setRoster(r); setQuestions((q||DEF_Q).map(migrateQ)); setSubmissions(s||[]);
       setAtt(a||{}); setAttNote(an||{}); setSetkStore(sk||{});
@@ -289,7 +303,7 @@ function App(){
     if(loading)return; // 초기 로드 중엔 저장 안 함
     if(qSaveTimer.current)clearTimeout(qSaveTimer.current);
     qSaveTimer.current=setTimeout(async()=>{
-      await DB.set("questions",questions);
+      await DB.set(SK.questions,questions);
       setSavedQ(true);setTimeout(()=>setSavedQ(false),1800);
     },1200);
     return()=>{if(qSaveTimer.current)clearTimeout(qSaveTimer.current);};
@@ -314,8 +328,8 @@ function App(){
   useEffect(()=>{if(FIXED_TABS.has(tab))setSideOpen(false);},[tab]);
 
   /* ── 출석 ── */
-  const toggleAtt=(id,p)=>{const v=(att[id]||{})[p]||"";const na={...att,[id]:{...(att[id]||{}),[p]:v==="/"?"":"/"}};setAtt(na);DB.set("att",na);};
-  const saveAtt=async()=>{await DB.set("att",att);await DB.set("attNote",attNote);setAttSaved(true);setTimeout(()=>setAttSaved(false),2000);};
+  const toggleAtt=(id,p)=>{const v=(att[id]||{})[p]||"";const na={...att,[id]:{...(att[id]||{}),[p]:v==="/"?"":"/"}};setAtt(na);DB.set(SK.att,na);};
+  const saveAtt=async()=>{await DB.set(SK.att,att);await DB.set(SK.attNote,attNote);setAttSaved(true);setTimeout(()=>setAttSaved(false),2000);};
   const presentCnt=()=>roster.filter(s=>!PERIODS.some(p=>(att[s.id]||{})[p]==="/")).length;
   const absentCnt=()=>roster.filter(s=>PERIODS.some(p=>(att[s.id]||{})[p]==="/")).length;
 
@@ -326,13 +340,13 @@ function App(){
     if(!name){setAddErr("이름 입력 필요");return;}
     if(roster.find(r=>r.id===id)){setAddErr(`학번 ${id} 이미 존재`);return;}
     const nr=[...roster,{no:roster.length+1,id,name}];
-    await save("roster",nr,setRoster);
+    await save(SK.roster,nr,setRoster);
     setAddModal(false);setAddForm({id:"",name:""});setAddErr("");
   };
   const deleteStudent=async(id)=>{
     if(!window.confirm("삭제?"))return;
     const nr=roster.filter(s=>s.id!==id).map((s,i)=>({...s,no:i+1}));
-    await save("roster",nr,setRoster);
+    await save(SK.roster,nr,setRoster);
   };
 
   /* ── 제출 상태 ── */
@@ -364,14 +378,14 @@ function App(){
     const data={stuId,stuName,answers,masterPhoto:answers._masterPhoto||null,at:new Date().toLocaleString("ko-KR")};
     const idx=submissions.findIndex(s=>s.stuId===stuId);
     const ns=idx>=0?[...submissions.slice(0,idx),data,...submissions.slice(idx+1)]:[...submissions,data];
-    await save("submissions",ns,setSubmissions);
+    await save(SK.submissions,ns,setSubmissions);
     setSubmitted(data);setPage("review");
   };
 
   /* ── AI 키 확인 ── */
   const ensureKey=()=>{
     const keys={...apiKeys}; const field=aiEngine==="Claude"?"claude":aiEngine==="Gemini"?"gemini":"openai";
-          if(!keys[field]){const k=prompt(`${aiEngine} API 키 입력`);if(!k)return null;const nk={...keys,[field]:k};setApiKeys(nk);DB.set("apiKeys",nk);return nk;}
+          if(!keys[field]){const k=prompt(`${aiEngine} API 키 입력`);if(!k)return null;const nk={...keys,[field]:k};setApiKeys(nk);DB.set(SK.apiKeys,nk);return nk;}
     return keys;
   };
 
@@ -399,7 +413,7 @@ function App(){
     try{
       const text=await callAI((gp?`[전역 지시문]\n${gp}\n\n`:"")+`학생 ${stu?.name||"(미선택)"}의 활동${ai+1}[${q?.title||""}] 교세특 초안 약${ext.bytes}바이트.\n문항:${q?.question||""}\n학생답변:${stuAns}\n국어역량:${ext.korComp.join(",")}\n수학역량:${ext.mathComp.join(",")}\n${t1Lbl}:${ext.obs1||"없음"}\n`+(teacher2.enabled?`${t2Lbl}:${ext.obs2||"없음"}\n`:"")+`지침:3인칭,해당 학생,세특만`,aiEngine,keys);
       setSetkPartResult(p=>({...p,[ai]:text}));setSetkExtras(prev=>{const n=[...prev];n[ai]={...n[ai],savedDraft:text};return n;});
-      if(setkStu){const qid=questions[ai]?.id||`q${ai+1}`;const ns={...setkStore,[setkStu]:{...(setkStore[setkStu]||{}),[qid]:text}};await save("setkStore",ns,setSetkStore);}
+      if(setkStu){const qid=questions[ai]?.id||`q${ai+1}`;const ns={...setkStore,[setkStu]:{...(setkStore[setkStu]||{}),[qid]:text}};await save(SK.setkStore,ns,setSetkStore);}
     }catch(e){setSetkPartResult(p=>({...p,[ai]:"오류: "+e.message}));}
     setSetkPartGen(p=>({...p,[ai]:false}));
   };
@@ -411,13 +425,13 @@ function App(){
       const acts=sel.map(({ext,q,i})=>`[활동${i+1}:${q.title}]${(globalPrompts[i]||{}).text?"\n전역:"+globalPrompts[i].text:""}\n문항:${q.question}\n학생:${getSetkSub()?.answers[q.id]?.text||"없음"}\n국어:${ext.korComp.join(",")}\n수학:${ext.mathComp.join(",")}\n${t1Lbl}:${ext.obs1}`+(teacher2.enabled?`\n${t2Lbl}:${ext.obs2}`:"")).join("\n\n");
       const text=await callAI(`학생 ${stu?.name||"미선택"} 융합수업 교세특 약${charLimit}자.\n\n${acts}\n\n지침:3인칭,"해당 학생",역량 언급,세특만`,aiEngine,keys);
       setSetkResult(text);
-      if(setkStu){const ns={...setkStore,[setkStu]:{...(setkStore[setkStu]||{}),final:text}};await save("setkStore",ns,setSetkStore);}
+      if(setkStu){const ns={...setkStore,[setkStu]:{...(setkStore[setkStu]||{}),final:text}};await save(SK.setkStore,ns,setSetkStore);}
     }catch(e){setSetkResult("오류: "+e.message);}setSetkGen(false);
   };
 
   /* ── OCR ── */
   const runOCR=async(qIdx,imgData,subIdx=null)=>{
-          const keys={...apiKeys};if(!keys.openai){const k=prompt("OpenAI API 키(OCR)");if(!k)return;const nk={...keys,openai:k};setApiKeys(nk);DB.set("apiKeys",nk);}
+          const keys={...apiKeys};if(!keys.openai){const k=prompt("OpenAI API 키(OCR)");if(!k)return;const nk={...keys,openai:k};setApiKeys(nk);DB.set(SK.apiKeys,nk);}
     const qid=questions[qIdx]?.id; const ok=subIdx!=null?`${qid}_sub${subIdx}`:qid;
     setOcrLoading(p=>({...p,[ok]:true}));setOcrDone(p=>({...p,[ok]:false}));setOcrSaved(p=>({...p,[ok]:false}));
     try{
@@ -625,7 +639,7 @@ function App(){
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,color:cv.muted,fontSize:".76rem"}}>{s.no}</td>
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,fontFamily:"monospace",fontWeight:700,fontSize:".78rem"}}>{s.id}</td>
                       <td style={{padding:".4rem .7rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700}}>{s.name}</td>
-                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".2rem"}}><span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span>{subm&&<button onClick={()=>{if(window.confirm("초기화?")){{const ns=submissions.map(ss=>{if(ss.stuId!==s.id)return ss;const na={...ss.answers};delete na[q.id];return{...ss,answers:na};});save("submissions",ns,setSubmissions);}}}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".62rem",padding:".08rem .35rem",borderRadius:4}}>↺</button>}</div></td>);})}
+                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".2rem"}}><span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span>{subm&&<button onClick={()=>{if(window.confirm("초기화?")){{const ns=submissions.map(ss=>{if(ss.stuId!==s.id)return ss;const na={...ss.answers};delete na[q.id];return{...ss,answers:na};});save(SK.submissions,ns,setSubmissions);}}}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".62rem",padding:".08rem .35rem",borderRadius:4}}>↺</button>}</div></td>);})}
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{hasMasterPhoto(s.id)?<span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>✓</span>:<span style={pill(cv.bg,cv.muted,cv.border2)}>미</span>}</td>
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><span style={pill(sbg,stC[st][1],sbc)}>{stLabel[st]}</span></td>
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{sub?<button onClick={()=>{setSubmitted(sub);setPage("review");}} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".73rem",padding:".2rem .45rem"}}>보기</button>:<span style={{color:cv.muted}}>—</span>}</td>
@@ -736,7 +750,7 @@ function App(){
 
             {/* ── 학생별 세특 ── */}
             {tab==="setkdash"&&(()=>{
-      const updateCell=async(sid,key,val)=>{const ns={...setkStore,[sid]:{...(setkStore[sid]||{}),[key]:val}};setSetkStore(ns);await DB.set("setkStore",ns);};
+      const updateCell=async(sid,key,val)=>{const ns={...setkStore,[sid]:{...(setkStore[sid]||{}),[key]:val}};setSetkStore(ns);await DB.set(SK.setkStore,ns);};
               const cellBadge=(txt)=>{if(!txt)return{label:"미입력",bg:cv.bg,col:cv.muted,bc:cv.border2};if(txt.length<10)return{label:"입력중",bg:cv.peachLt,col:cv.peachDk,bc:cv.peachMd};return{label:"완료",bg:cv.mintLt,col:cv.mint,bc:cv.mintMd};};
               return(<div>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.1rem",flexWrap:"wrap",gap:".6rem"}}>
@@ -773,38 +787,38 @@ function App(){
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".95rem"}}>👨‍🏫 교사 프로필</div>
                 <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem",marginBottom:".9rem"}}>
-                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>교사 1 성명</div><input style={inp()} placeholder="홍길동" value={teacher1.name} onChange={e=>{const n={...teacher1,name:e.target.value};setTeacher1(n);DB.set("teacher1",n);}}/></div>
-                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div><input style={inp()} placeholder="확률과 통계" value={teacher1.subject} onChange={e=>{const n={...teacher1,subject:e.target.value};setTeacher1(n);DB.set("teacher1",n);}}/></div>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>교사 1 성명</div><input style={inp()} placeholder="홍길동" value={teacher1.name} onChange={e=>{const n={...teacher1,name:e.target.value};setTeacher1(n);DB.set(SK.teacher1,n);}}/></div>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div><input style={inp()} placeholder="확률과 통계" value={teacher1.subject} onChange={e=>{const n={...teacher1,subject:e.target.value};setTeacher1(n);DB.set(SK.teacher1,n);}}/></div>
                 </div>
-                <div style={{padding:".7rem .85rem",background:cv.bg,borderRadius:8,border:`1px solid ${cv.border}`,marginBottom:".85rem"}}>                <label style={{display:"flex",alignItems:"center",gap:".5rem",cursor:"pointer",fontWeight:700,fontSize:".88rem",color:cv.ink2}}><input type="checkbox" checked={teacher2.enabled} onChange={e=>{const n={...teacher2,enabled:e.target.checked};setTeacher2(n);DB.set("teacher2",n);}} style={{accentColor:cv.lav,width:15,height:15}}/>교사 2 (코티칭) 활성화</label></div>
+                <div style={{padding:".7rem .85rem",background:cv.bg,borderRadius:8,border:`1px solid ${cv.border}`,marginBottom:".85rem"}}>                <label style={{display:"flex",alignItems:"center",gap:".5rem",cursor:"pointer",fontWeight:700,fontSize:".88rem",color:cv.ink2}}><input type="checkbox" checked={teacher2.enabled} onChange={e=>{const n={...teacher2,enabled:e.target.checked};setTeacher2(n);DB.set(SK.teacher2,n);}} style={{accentColor:cv.lav,width:15,height:15}}/>교사 2 (코티칭) 활성화</label></div>
                 {teacher2.enabled&&(<div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".7rem"}}>
-                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>교사 2 성명</div><input style={inp()} placeholder="이영희" value={teacher2.name} onChange={e=>{const n={...teacher2,name:e.target.value};setTeacher2(n);DB.set("teacher2",n);}}/></div>
-                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div><input style={inp()} placeholder="화법과 작문" value={teacher2.subject} onChange={e=>{const n={...teacher2,subject:e.target.value};setTeacher2(n);DB.set("teacher2",n);}}/></div>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>교사 2 성명</div><input style={inp()} placeholder="이영희" value={teacher2.name} onChange={e=>{const n={...teacher2,name:e.target.value};setTeacher2(n);DB.set(SK.teacher2,n);}}/></div>
+                  <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>담당 과목</div><input style={inp()} placeholder="화법과 작문" value={teacher2.subject} onChange={e=>{const n={...teacher2,subject:e.target.value};setTeacher2(n);DB.set(SK.teacher2,n);}}/></div>
                 </div>)}
               </div>
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".4rem",fontSize:".95rem"}}>📋 활동별 전역 AI 지시문</div>
                 <div style={{fontSize:".78rem",color:cv.muted,marginBottom:".8rem",lineHeight:1.6,background:"#fffdf0",padding:".6rem .85rem",borderRadius:7,border:`1px solid ${cv.peachMd}`}}>학생 화면 미노출 · 세특 생성 시 자동 삽입 · 서버에 저장됩니다</div>
                 <div style={{display:"flex",flexDirection:"column",gap:".7rem"}}>
-                  {questions.map((q,i)=>(<div key={q.id}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>Q{i+1} — {q.title}</div><textarea style={{...inp(),minHeight:66,resize:"vertical",lineHeight:1.7,background:"#fffdf0",border:`1.5px solid ${cv.peachMd}`}} placeholder="페르소나, 어미 제한 등..." value={(globalPrompts[i]||{}).text||""} onChange={e=>{const n=questions.map((_,j)=>({id:questions[j].id,text:j===i?e.target.value:(globalPrompts[j]||{}).text||""}));setGlobalPrompts(n);DB.set("globalPrompts",n);}}/></div>))}
+                  {questions.map((q,i)=>(<div key={q.id}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>Q{i+1} — {q.title}</div><textarea style={{...inp(),minHeight:66,resize:"vertical",lineHeight:1.7,background:"#fffdf0",border:`1.5px solid ${cv.peachMd}`}} placeholder="페르소나, 어미 제한 등..." value={(globalPrompts[i]||{}).text||""} onChange={e=>{const n=questions.map((_,j)=>({id:questions[j].id,text:j===i?e.target.value:(globalPrompts[j]||{}).text||""}));setGlobalPrompts(n);DB.set(SK.globalPrompts,n);}}/></div>))}
                 </div>
               </div>
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".95rem"}}>🤖 AI API Key</div>
-                {[["Claude","claude","sk-ant-..."],["Gemini","gemini","AIza..."],["ChatGPT + OCR","openai","sk-..."]].map(([label,field,ph])=>(<div key={field} style={{marginBottom:".8rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{label}</div><input type="password" style={inp()} placeholder={ph} value={apiKeys[field]||""} onChange={e=>{const n={...apiKeys,[field]:e.target.value};setApiKeys(n);DB.set("apiKeys",n);}}/></div>))}
-                <div style={{marginTop:".4rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>현재 AI 엔진</div><div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>{AI_ENGINES.map(eng=>(<label key={eng} style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer",padding:".35rem .7rem",borderRadius:8,border:`1.5px solid ${aiEngine===eng?cv.lav:cv.border2}`,background:aiEngine===eng?cv.lavLt:"#fff",fontWeight:aiEngine===eng?700:400,fontSize:".82rem",color:aiEngine===eng?cv.lav:cv.ink2}}><input type="radio" name="ae2" value={eng} checked={aiEngine===eng} onChange={()=>{setAiEngine(eng);DB.set("aiEngine",eng);}} style={{accentColor:cv.lav}}/>{eng}</label>))}</div></div>
+                {[["Claude","claude","sk-ant-..."],["Gemini","gemini","AIza..."],["ChatGPT + OCR","openai","sk-..."]].map(([label,field,ph])=>(<div key={field} style={{marginBottom:".8rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{label}</div><input type="password" style={inp()} placeholder={ph} value={apiKeys[field]||""} onChange={e=>{const n={...apiKeys,[field]:e.target.value};setApiKeys(n);DB.set(SK.apiKeys,n);}}/></div>))}
+                <div style={{marginTop:".4rem"}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".35rem"}}>현재 AI 엔진</div><div style={{display:"flex",gap:".5rem",flexWrap:"wrap"}}>{AI_ENGINES.map(eng=>(<label key={eng} style={{display:"flex",alignItems:"center",gap:".35rem",cursor:"pointer",padding:".35rem .7rem",borderRadius:8,border:`1.5px solid ${aiEngine===eng?cv.lav:cv.border2}`,background:aiEngine===eng?cv.lavLt:"#fff",fontWeight:aiEngine===eng?700:400,fontSize:".82rem",color:aiEngine===eng?cv.lav:cv.ink2}}><input type="radio" name="ae2" value={eng} checked={aiEngine===eng} onChange={()=>{setAiEngine(eng);DB.set(SK.aiEngine,eng);}} style={{accentColor:cv.lav}}/>{eng}</label>))}</div></div>
               </div>
               <div style={{...crd(),marginBottom:".9rem"}}>
                 <div style={{fontWeight:700,marginBottom:".9rem",fontSize:".95rem"}}>🔒 비밀번호 변경</div>
                 <div style={{display:"flex",gap:".6rem",alignItems:"flex-end"}}>
                   <div style={{flex:1}}><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>새 비밀번호 (숫자)</div><input type="password" style={inp()} placeholder="숫자만" value={newPw} onChange={e=>setNewPw(e.target.value.replace(/\D/g,"").slice(0,8))}/></div>
-                  <button onClick={async()=>{if(newPw.length<2){alert("최소 2자리");return;}await DB.set("teacherPw",newPw);setTeacherPwServer(newPw);setNewPw("");alert("변경 완료");}} style={btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`)}>변경</button>
+                  <button onClick={async()=>{if(newPw.length<2){alert("최소 2자리");return;}await DB.set(SK.teacherPw,newPw);setTeacherPwServer(newPw);setNewPw("");alert("변경 완료");}} style={btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`)}>변경</button>
                 </div>
               </div>
               <div style={{display:"flex",gap:".8rem",flexWrap:"wrap"}}>
-                <button onClick={async()=>{if(window.confirm("제출 데이터 전체 삭제?"))await save("submissions",[],setSubmissions);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>제출 데이터 삭제</button>
-                <button onClick={async()=>{if(window.confirm("명단 복원?"))await save("roster",INIT_ROSTER,setRoster);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>명단 복원</button>
-                <button onClick={async()=>{if(window.confirm("문항 복원?"))await save("questions",DEF_Q.map(migrateQ),setQuestions);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>문항 복원</button>
+                <button onClick={async()=>{if(window.confirm("제출 데이터 전체 삭제?"))await save(SK.submissions,[],setSubmissions);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>제출 데이터 삭제</button>
+                <button onClick={async()=>{if(window.confirm("명단 복원?"))await save(SK.roster,INIT_ROSTER,setRoster);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>명단 복원</button>
+                <button onClick={async()=>{if(window.confirm("문항 복원?"))await save(SK.questions,DEF_Q.map(migrateQ),setQuestions);}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`}}>문항 복원</button>
               </div>
             </>)}
           </main>
