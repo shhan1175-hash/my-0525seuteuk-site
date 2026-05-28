@@ -138,7 +138,21 @@ const DEF_Q=[
    subQuestions:[],placeholder:"의사: 검사 결과가 양성으로 나왔습니다만...",rubric:["베이즈 정리 적용","계산 정확성","대화 형식","개념 이해도"]},
 ];
 function migrateQ(q){
-  return{videoUrl:"",poemImages:[],...q,subQuestions:Array.isArray(q.subQuestions)?q.subQuestions:(q.subQuestion?q.subQuestion.split("\n").filter(Boolean):[])};
+  if(!q||typeof q!=="object")return{...DEF_Q[0],id:"q"+Date.now()};
+  return{
+    id:q.id||"q"+Date.now(),
+    subject:q.subject||"",
+    title:q.title||"새 문항",
+    maxLen:Number(q.maxLen)||500,
+    poemImages:Array.isArray(q.poemImages)?q.poemImages:[],
+    videoUrl:q.videoUrl||"",
+    question:q.question||"",
+    subQuestions:Array.isArray(q.subQuestions)
+      ?q.subQuestions
+      :(q.subQuestion?String(q.subQuestion).split("\n").filter(Boolean):[]),
+    placeholder:q.placeholder||"",
+    rubric:Array.isArray(q.rubric)?q.rubric:[],
+  };
 }
 
 const PERIODS=[1,2,3,4,5,6,7];
@@ -284,7 +298,9 @@ function App(){
         DB.get(SK.aiEngine,"Claude"),
         DB.get(SK.teacherPw,"1234"),
       ]);
-      setRoster(r); setQuestions((q||DEF_Q).map(migrateQ)); setSubmissions(s||[]);
+      setRoster(Array.isArray(r)?r:INIT_ROSTER);
+      setQuestions((Array.isArray(q)&&q.length>0?q:DEF_Q).map(migrateQ));
+      setSubmissions(Array.isArray(s)?s:[]);
       setAtt(a||{}); setAttNote(an||{}); setSetkStore(sk||{});
       setTeacher1(t1||{name:"",subject:""}); setTeacher2(t2||{name:"",subject:"",enabled:false});
       setGlobalPrompts(gp||DEF_Q.map(q=>({id:q.id,text:""})));
