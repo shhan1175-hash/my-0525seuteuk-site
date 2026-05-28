@@ -285,10 +285,8 @@ function App(){
   const TBtn=()=>(page!=="worksheet"&&page!=="review"&&page!=="result"?<button onClick={()=>{setPwInput("");setPage("pw");}} style={{...btn(`linear-gradient(135deg,${cv.lavMd},#b8a4f0)`,cv.ink),borderRadius:20,fontSize:".76rem",padding:".38rem 1.05rem"}}>🏫 교사 모드</button>:null);
   const Spinner=({prog,msg})=>(<div style={{position:"fixed",inset:0,background:"rgba(45,40,64,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}><div style={{...crd(),maxWidth:320,width:"90%",textAlign:"center",padding:"2.3rem"}}><div style={{width:46,height:46,border:`3px solid ${cv.border}`,borderTopColor:cv.lav,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 1.2rem"}}/><div style={{fontWeight:700,fontSize:"1.1rem",marginBottom:".3rem",color:cv.ink}}>{msg||"교세특 생성 중..."}</div>{prog!=null&&<div style={{height:5,background:cv.border,borderRadius:999,overflow:"hidden"}}><div style={{height:"100%",width:prog+"%",background:`linear-gradient(90deg,${cv.lavMd},${cv.mintMd})`,transition:"width .3s"}}/></div>}</div></div>);
 
-  /* ══ 사이드바 메뉴 렌더 (공유) ══ */
+  /* ══ 사이드바 메뉴 데이터 ══ */
   const MENU=[{k:"home",icon:"🏠",label:"홈"},{k:"dashboard",icon:"👥",label:"학생현황"},{k:"submissions",icon:"📋",label:"제출현황",badge:submissions.length},{k:"questions",icon:"✏️",label:"문항설정"},{k:"setk",icon:"🧠",label:"활동 분석 및 세특"},{k:"setkdash",icon:"📊",label:"학생별 세특"},{k:"settings",icon:"⚙️",label:"환경설정"}];
-  const SideMenu=({onClose})=>(<>
-    {MENU.map(({k,icon,label,badge})=>{const isA=tab===k;return(<div key={k} onClick={()=>{setTab(k);if(onClose)onClose();}} style={{display:"flex",alignItems:"center",gap:".65rem",padding:".72rem 1.1rem",margin:"0 .55rem",borderRadius:10,cursor:"pointer",fontSize:".9rem",fontWeight:isA?800:500,color:isA?cv.lav:cv.muted,background:isA?cv.lavLt:"transparent",borderLeft:`3px solid ${isA?cv.lav:"transparent"}`,transition:"all .13s"}}>{icon} {label}{badge>0&&<span style={{...pill(cv.lavMd,cv.ink,cv.lavMd),fontSize:".65rem",padding:".08rem .38rem",marginLeft:"auto"}}>{badge}</span>}</div>);})}</>);
 
   /* ════ LOGIN ════ */
   if(page==="login")return(
@@ -371,7 +369,7 @@ function App(){
           {/* 2.3 고정형 사이드바 */}
           {isFixed&&(
             <aside className="sidebar-fixed">
-              <SideMenu/>
+              <SideMenu menu={MENU} tab={tab} onSelect={(k)=>setTab(k)}/>
             </aside>
           )}
           {/* 2.3 유동형 사이드바 */}
@@ -379,7 +377,7 @@ function App(){
             <div ref={triggerRef} className="sidebar-trigger"/>
             <div className={"sidebar-overlay"+(sideOpen?" show":"")} onClick={()=>setSideOpen(false)}/>
             <nav ref={sideRef} className={"sidebar-float"+(sideOpen?" open":"")}>
-              <SideMenu onClose={()=>setSideOpen(false)}/>
+              <SideMenu menu={MENU} tab={tab} onSelect={(k)=>{setTab(k);setSideOpen(false);}}/>
             </nav>
           </>}
 
@@ -858,6 +856,18 @@ function App(){
     </div>
   );
   return null;
+}
+
+/* ── 사이드바 메뉴 컴포넌트 (App 외부 독립) ── */
+function SideMenu({menu,tab,onSelect}){
+  const cv2={lav:"#7c5cbf",lavLt:"#ede9ff",lavMd:"#c5b8f5",muted:"#8882a8",ink:"#2d2840"};
+  const pill2=(bg,col,bc)=>({background:bg,color:col,border:`1px solid ${bc}`,borderRadius:20,padding:".08rem .38rem",fontSize:".65rem",fontWeight:700,display:"inline-flex",alignItems:"center",whiteSpace:"nowrap"});
+  return(<>{menu.map(({k,icon,label,badge})=>{
+    const isA=tab===k;
+    return(<div key={k} onClick={()=>onSelect(k)} style={{display:"flex",alignItems:"center",gap:".65rem",padding:".72rem 1.1rem",margin:"0 .55rem",borderRadius:10,cursor:"pointer",fontSize:".9rem",fontWeight:isA?800:500,color:isA?cv2.lav:cv2.muted,background:isA?cv2.lavLt:"transparent",borderLeft:`3px solid ${isA?cv2.lav:"transparent"}`,transition:"all .13s"}}>
+      {icon} {label}{badge>0&&<span style={{...pill2(cv2.lavMd,cv2.ink,cv2.lavMd),marginLeft:"auto"}}>{badge}</span>}
+    </div>);
+  })}</>);
 }
 
 /* ── 서브 컴포넌트 ── */
