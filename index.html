@@ -398,18 +398,10 @@ function App(){
     }
   },[snapshot,jbEnabled,jbKey,jbBinId]);
 
-  /* ── 문항 자동저장 ── */
+  /* 문항 변경 시 로컬만 임시 저장 (서버 저장은 버튼으로) */
   useEffect(()=>{
     if(loading)return;
-    if(qSaveTimer.current)clearTimeout(qSaveTimer.current);
-    qSaveTimer.current=setTimeout(async()=>{
-      LC.set("lc_questions",questions);
-      if(jbEnabled){
-        try{await JBIN.save(jbKey,jbBinId,{...snapshot(),questions});setSavedQ(true);setTimeout(()=>setSavedQ(false),2000);}
-        catch(e){console.warn("문항 자동저장 실패",e.message);}
-      }else{setSavedQ(true);setTimeout(()=>setSavedQ(false),2000);}
-    },1500);
-    return()=>{if(qSaveTimer.current)clearTimeout(qSaveTimer.current);};
+    LC.set("lc_questions",questions);
   },[questions]);
 
   /* ── JSONBin 수동 동기화 ── */
@@ -1095,9 +1087,20 @@ function App(){
     return(
       <div style={{background:cv.bg,minHeight:"100vh"}}>
         {generating&&<Spinner prog={genProg}/>}
-        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 1rem",height:52,background:"#fff",borderBottom:`2px solid ${cv.border}`,position:"sticky",top:0,zIndex:80}}>
-          <span onClick={reset} style={{fontWeight:800,fontSize:".95rem",cursor:"pointer",color:cv.ink}}>화법과 작문 <span style={{color:cv.lav}}>×</span> 확률과 통계</span>
-          <span style={{fontSize:".76rem",color:cv.muted}}><strong style={{color:cv.ink2}}>{stuName}</strong> · {stuId}</span>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 1rem",height:56,background:"#fff",borderBottom:`2px solid ${cv.border}`,position:"sticky",top:0,zIndex:80,gap:"1rem"}}>
+          <div style={{display:"flex",flexDirection:"column",justifyContent:"center",minWidth:0}}>
+            <span onClick={reset} style={{fontWeight:900,fontSize:"1rem",cursor:"pointer",color:cv.ink,lineHeight:1.2}}>
+              화법과 작문 <span style={{color:cv.lav}}>×</span> 확률과 통계
+            </span>
+            <span style={{fontSize:".72rem",color:cv.lav,fontWeight:700,marginTop:".18rem",whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis"}}>
+              조건부 확률에 따른 다양한 문학적 관점에서의 글쓰기
+            </span>
+          </div>
+          <div style={{display:"flex",alignItems:"center",gap:".5rem",flexShrink:0,background:cv.lavLt,border:`1.5px solid ${cv.lavMd}`,borderRadius:22,padding:".32rem .85rem"}}>
+            <span style={{fontSize:".88rem",fontWeight:900,color:cv.lav}}>{stuName}</span>
+            <span style={{fontSize:".72rem",color:cv.muted,fontWeight:400}}>·</span>
+            <span style={{fontSize:".85rem",fontWeight:800,color:cv.ink2,fontFamily:"monospace"}}>{stuId}</span>
+          </div>
         </div>
         <div style={{maxWidth:780,margin:"0 auto",padding:"1.4rem 1rem 4rem"}}>
           <div style={{marginBottom:"1.2rem"}}>
