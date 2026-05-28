@@ -362,7 +362,7 @@ function App(){
   };
 
   const isActSubmitted=(sid,qid)=>!!(submissions.find(s=>s.stuId===sid)?.answers[qid]?.text?.trim());
-  const hasMasterPhoto=(sid)=>!!(submissions.find(s=>s.stuId===sid)?.masterPhoto);
+  const hasMasterPhoto=(sid)=>questions.some(q=>!!(submissions.find(s=>s.stuId===sid)?.answers[q.id]?.questionPhoto));
   const wsAllSubmitted=(sid)=>questions.every(q=>isActSubmitted(sid,q.id));
   const getStatus=s=>{const all=wsAllSubmitted(s.id),mp=hasMasterPhoto(s.id);if(all&&mp)return"complete";if(all)return"ws";if(mp)return"ph";return"none";};
   const stLabel={"complete":"✅ 완료","ws":"📝 활동지만","ph":"📸 사진만","none":"❌ 미제출"};
@@ -383,7 +383,7 @@ function App(){
   const submitWS=async()=>{
     const bad=questions.filter(q=>(answers[q.id]?.text||"").trim().length<20);
     if(bad.length){alert("답변 20자 이상:\n"+bad.map(q=>q.title).join(", "));return;}
-    const data={stuId,stuName,answers,masterPhoto:answers._masterPhoto||null,at:new Date().toLocaleString("ko-KR")};
+    const data={stuId,stuName,answers,at:new Date().toLocaleString("ko-KR")};
     const idx=submissions.findIndex(s=>s.stuId===stuId);
     const ns=idx>=0?[...submissions.slice(0,idx),data,...submissions.slice(idx+1)]:[...submissions,data];
     setSubmissions(ns);await pushToServer({submissions:ns});setSubmitted(data);setPage("review");
@@ -821,48 +821,56 @@ function App(){
             {tab==="settings"&&(<>
               <div style={{fontWeight:800,fontSize:"1.25rem",marginBottom:"1.2rem",color:cv.ink}}>⚙️ 환경설정</div>
 
-              {/* ★ JSONBlob 서버 설정 — API Key 불필요 */}
-              <div style={{...crd({background:blobEnabled?cv.mintLt:cv.peachLt,border:`2px solid ${blobEnabled?cv.mintMd:cv.peachMd}`}),marginBottom:"1.2rem"}}>
-                <div style={{fontWeight:800,marginBottom:".5rem",fontSize:"1rem",color:cv.ink}}>🌐 서버 동기화 설정 <span style={{...pill(cv.mintLt,cv.mint,cv.mintMd),fontSize:".7rem",marginLeft:".4rem"}}>API Key 불필요</span></div>
-                <div style={{fontSize:".82rem",color:cv.ink2,lineHeight:1.8,marginBottom:"1rem",background:"rgba(255,255,255,.8)",padding:".75rem 1rem",borderRadius:9,border:`1px solid ${cv.mintMd}`}}>
-                  <strong>처음 설정:</strong> 아래 <strong>[🆕 새 Blob 생성]</strong> 버튼 클릭 → Blob ID 자동 생성<br/>
-                  <strong>이후:</strong> <strong>[📱 학생 공유 링크 복사]</strong> → 카카오톡/구글 클래스룸으로 학생들에게 공유<br/>
-                  <strong style={{color:cv.mint}}>✅ 이 링크 하나로 문항 로드 + 학생 제출이 모두 해결됩니다!</strong>
+              {/* ★ Firebase Realtime Database 설정 */}
+              <div style={{...crd({background:dbEnabled?cv.mintLt:cv.peachLt,border:`2px solid ${dbEnabled?cv.mintMd:cv.peachMd}`}),marginBottom:"1.2rem"}}>
+                <div style={{fontWeight:800,marginBottom:".6rem",fontSize:"1rem",color:cv.ink}}>🔥 Firebase 서버 설정 <span style={{...pill(cv.mintLt,cv.mint,cv.mintMd),fontSize:".7rem",marginLeft:".4rem"}}>무료 · API Key 불필요</span></div>
+
+                {/* 설정 안내 */}
+                <div style={{fontSize:".83rem",lineHeight:1.9,marginBottom:"1rem",background:"rgba(255,255,255,.9)",padding:".85rem 1rem",borderRadius:9,border:`1px solid ${cv.mintMd}`}}>
+                  <strong>⏱ 5분이면 완료됩니다:</strong><br/>
+                  1. <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" style={{color:cv.lav,fontWeight:700}}>console.firebase.google.com</a> 접속 (Google 계정으로 로그인)<br/>
+                  2. <strong>프로젝트 만들기</strong> → 이름 입력 → 계속 → 프로젝트 만들기<br/>
+                  3. 왼쪽 메뉴 <strong>빌드 → Realtime Database</strong> → <strong>데이터베이스 만들기</strong><br/>
+                  4. 위치: 기본값 → <strong>테스트 모드로 시작</strong> 선택 → 사용 설정<br/>
+                  5. 표시되는 URL 복사 (예: <code style={{background:"#f0f4ff",padding:".1rem .3rem",borderRadius:4,fontSize:".78rem"}}>https://my-app-rtdb.firebaseio.com</code>)<br/>
+                  6. 아래 칸에 붙여넣기 → <strong>연결 테스트</strong> 클릭
                 </div>
 
                 <div style={{marginBottom:"1rem"}}>
-                  <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>Blob ID <span style={{fontWeight:400,color:cv.muted}}>(자동 생성됨)</span></div>
-                  <input style={{...inp(),fontFamily:"monospace",fontSize:".85rem"}} placeholder="[새 Blob 생성] 버튼을 클릭하면 자동으로 입력됩니다" value={blobId} onChange={e=>{setBlobId(e.target.value);LC.set("blob_id",e.target.value);}}/>
+                  <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>Firebase Database URL</div>
+                  <input style={{...inp(),fontFamily:"monospace",fontSize:".85rem"}} placeholder="https://my-project-default-rtdb.firebaseio.com" value={dbUrl} onChange={e=>{setDbUrl(e.target.value.trim());LC.set("fb_url",e.target.value.trim());}}/>
                 </div>
 
                 {/* 학생 공유 링크 */}
-                {blobId&&(<div style={{marginBottom:"1rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
-                  <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".4rem"}}>📱 학생 공유 링크</div>
+                {dbUrl&&(<div style={{marginBottom:"1rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
+                  <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".4rem"}}>📱 학생 공유 링크 (이것만 공유하면 끝!)</div>
                   <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
-                    <input readOnly style={{...inp(),flex:1,fontSize:".77rem",background:"#fff",fontFamily:"monospace"}} value={`${window.location.origin}${window.location.pathname}?bin=${blobId}`}/>
-                    <button onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?bin=${blobId}`).then(()=>alert("✅ 링크 복사됨!\n\n이 링크를 학생들에게 공유하세요.\n학생이 접속하면 문항이 자동으로 보이고\n제출한 답변도 선생님께 전달됩니다.")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 링크 복사</button>
+                    <input readOnly style={{...inp(),flex:1,fontSize:".72rem",background:"#fff",fontFamily:"monospace"}} value={`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`}/>
+                    <button onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`).then(()=>alert("✅ 링크 복사됨!\n\n카카오톡이나 구글 클래스룸으로 학생들에게 공유하세요.\n\n학생이 이 링크로 접속하면:\n✓ 선생님 문항 자동 표시\n✓ 제출한 답변 선생님께 전달")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 복사</button>
                   </div>
                 </div>)}
 
                 <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
                   <button onClick={async()=>{
+                    if(!dbUrl){alert("Firebase URL을 먼저 입력하세요.");return;}
+                    setSyncMsg("연결 테스트 중...");
                     try{
-                      setSyncMsg("Blob 생성 중...");
-                      const initData={roster,questions,submissions,att,attNote,setkStore,teacher1,teacher2,globalPrompts,apiKeys,aiEngine,teacherPw:teacherPwServer,driveUrls,rootUrl};
-                      const id=await JBLOB.create(initData);
-                      setBlobId(id);LC.set("blob_id",id);setBlobStatus("ok");
-                      setSyncMsg("✓ 생성 완료");setTimeout(()=>setSyncMsg(""),3000);
-                      alert(`✅ Blob 생성 완료!\n\nBlob ID: ${id}\n\n이제 위의 [📱 학생 공유 링크 복사] 버튼으로\n학생들에게 링크를 공유하세요!`);
-                    }catch(e){setSyncMsg("");alert("생성 실패: "+e.message);}
-                  }} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".88rem",padding:".6rem 1.2rem",fontWeight:800}}>🆕 새 Blob 생성</button>
-                  <button onClick={syncFromServer} disabled={!blobEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:blobEnabled?1:.5}}>🔄 서버에서 불러오기</button>
+                      await FB.save(dbUrl,{...snapshot(),_test:true});
+                      setDbStatus("ok");setSyncMsg("✓ 연결 성공!");setTimeout(()=>setSyncMsg(""),3000);
+                      alert("✅ Firebase 연결 성공!\n\n이제 위의 [📋 복사] 버튼으로\n학생들에게 링크를 공유하세요!");
+                    }catch(e){
+                      setDbStatus("error");setSyncMsg("");
+                      alert("❌ 연결 실패: "+e.message+"\n\nFirebase URL을 다시 확인하세요.\n(테스트 모드로 설정했는지 확인)");
+                    }
+                  }} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".88rem",padding:".6rem 1.2rem",fontWeight:800}}>🔗 연결 테스트</button>
+                  <button onClick={syncFromServer} disabled={!dbEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:dbEnabled?1:.5}}>🔄 서버에서 불러오기</button>
                   <button onClick={async()=>{
-                    if(!blobEnabled){alert("Blob ID를 먼저 생성하세요.");return;}
+                    if(!dbEnabled){alert("Firebase URL을 먼저 입력하세요.");return;}
                     if(!window.confirm("현재 데이터를 서버에 강제 저장할까요?"))return;
                     await pushToServer();alert("✅ 서버 저장 완료");
                   }} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,fontSize:".84rem",padding:".5rem 1.1rem"}}>💾 서버에 저장하기</button>
                 </div>
-                {blobEnabled&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ 서버 연결됨</div>}
+                {dbEnabled&&dbStatus==="ok"&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ Firebase 연결됨 — 문항 변경 시 [💾 문항 저장] 버튼을 눌러 학생 화면에 반영하세요</div>}
               </div>
 
               <div style={{...crd(),marginBottom:".9rem"}}>
@@ -905,7 +913,7 @@ function App(){
 
   if(page==="worksheet"){
     const q=questions[curQ];if(!q)return null;
-    const ans=answers[q.id]||{text:"",imgData:null,imgText:"",poemSel:"",subImgs:{},subImgTexts:{}};
+    const ans=answers[q.id]||{text:"",imgData:null,imgText:"",poemSel:"",subImgs:{},subImgTexts:{},questionPhoto:null};
     const masterPhoto=answers._masterPhoto||null;
     const cnt=(ans.text||"").length;
     const updAns=(f,v)=>setAnswers(p=>({...p,[q.id]:{...(p[q.id]||{}),[f]:v}}));
@@ -986,10 +994,10 @@ function App(){
               </div>
             </>)}
             <div style={{background:cv.mintLt,border:`1.5px solid ${cv.mintMd}`,borderRadius:10,padding:".85rem .95rem",marginBottom:"1rem"}}>
-              <div style={{display:"flex",alignItems:"center",gap:".45rem",marginBottom:".5rem"}}><span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>3단계</span><span style={{fontWeight:800,fontSize:".88rem",color:cv.mint}}>활동지 전체 마스터 사진</span></div>
-              <div style={{fontSize:".8rem",color:cv.ink2,marginBottom:".65rem",lineHeight:1.6}}>작성한 활동지 전체를 촬영하여 업로드해주세요.</div>
-              <ImgUpload value={masterPhoto} onChange={v=>setAnswers(p=>({...p,_masterPhoto:v}))} label="📷 활동지 전체 사진"/>
-              {masterPhoto&&<div style={{marginTop:".45rem",fontSize:".77rem",color:cv.mint,fontWeight:700}}>✅ 마스터 사진 첨부 완료</div>}
+              <div style={{display:"flex",alignItems:"center",gap:".45rem",marginBottom:".5rem"}}><span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>3단계</span><span style={{fontWeight:800,fontSize:".88rem",color:cv.mint}}>이 문항 페이지 전체 사진</span></div>
+              <div style={{fontSize:".8rem",color:cv.ink2,marginBottom:".65rem",lineHeight:1.6}}>현재 문항이 작성된 <strong>이 페이지 전체</strong>를 촬영하여 업로드해주세요.</div>
+              <ImgUpload value={ans.questionPhoto||null} onChange={v=>updAns("questionPhoto",v)} label="📷 이 문항 페이지 사진"/>
+              {ans.questionPhoto&&<div style={{marginTop:".45rem",fontSize:".77rem",color:cv.mint,fontWeight:700}}>✅ 사진 첨부 완료</div>}
             </div>
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"1.1rem",borderTop:`1.5px solid ${cv.border}`}}>
