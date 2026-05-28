@@ -275,7 +275,11 @@ function App(){
   useEffect(()=>{
     (async()=>{
       setLoading(true);
-      const savedKey=LC.get("jb_key",""),savedBin=LC.get("jb_binid",""),publicBin=LC.get("jb_public_binid","");
+      /* ★ URL ?bin=XXXX 파라미터 → 학생 기기 자동 세팅 */
+      const urlBin=new URLSearchParams(window.location.search).get("bin");
+      if(urlBin){LC.set("jb_public_binid",urlBin);setJbPublicBinId(urlBin);}
+
+      const savedKey=LC.get("jb_key",""),savedBin=LC.get("jb_binid",""),publicBin=urlBin||LC.get("jb_public_binid","");
       if(savedKey&&savedBin){
         try{
           const d=await JBIN.load(savedKey,savedBin);applyData(d);
@@ -835,11 +839,23 @@ function App(){
                   <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>JSONBin Secret Key</div><input type="password" style={inp()} placeholder="$2a$10$..." value={jbKey} onChange={e=>{setJbKey(e.target.value);LC.set("jb_key",e.target.value);}}/><div style={{fontSize:".71rem",color:cv.muted,marginTop:".2rem"}}>이 기기에만 저장됩니다 (보안)</div></div>
                   <div><div style={{fontSize:".78rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>Bin ID</div><input style={inp()} placeholder="64자리 hex ID" value={jbBinId} onChange={e=>{setJbBinId(e.target.value);LC.set("jb_binid",e.target.value);}}/><div style={{fontSize:".71rem",color:cv.muted,marginTop:".2rem"}}>모든 선생님이 동일한 Bin ID 입력</div></div>
                 </div>
-                <div style={{marginBottom:".9rem",padding:".7rem .9rem",background:"#f0fff8",border:`1.5px solid ${cv.mintMd}`,borderRadius:9}}>
-                  <div style={{fontSize:".78rem",fontWeight:700,color:cv.mint,marginBottom:".25rem"}}>📱 학생 공유용 Bin ID <span style={{fontWeight:400,color:cv.muted}}>(학생 모바일에서 문항을 불러오기 위해 필요)</span></div>
-                  <input style={inp()} placeholder="Bin ID 붙여넣기 (위의 Bin ID와 동일하게 입력)" value={jbPublicBinId} onChange={e=>{setJbPublicBinId(e.target.value);LC.set("jb_public_binid",e.target.value);}}/>
-                  <div style={{fontSize:".72rem",color:cv.muted,marginTop:".3rem",lineHeight:1.6}}>💡 학생들의 모바일·태블릿에서 이 앱을 열 때 Secret Key 없이도 문항을 불러옵니다.<br/>위의 <strong>Bin ID와 동일한 값</strong>을 입력하고, JSONBin에서 해당 Bin을 <strong>Public</strong>으로 설정해주세요.</div>
-                </div>
+                {/* ★ 학생 공유 링크 */}
+                {(jbBinId||jbPublicBinId)&&(()=>{
+                  const shareUrl=`${window.location.origin}${window.location.pathname}?bin=${jbPublicBinId||jbBinId}`;
+                  return(<div style={{marginBottom:".9rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
+                    <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".5rem"}}>📱 학생 공유 링크</div>
+                    <div style={{fontSize:".78rem",color:cv.ink2,marginBottom:".55rem",lineHeight:1.65}}>
+                      아래 링크를 학생들에게 공유하세요. 학생이 이 링크로 접속하면 <strong>선생님이 설정한 문항을 자동으로 불러옵니다.</strong>
+                    </div>
+                    <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
+                      <input readOnly style={{...inp(),flex:1,fontSize:".77rem",background:"#fff",color:cv.ink2,fontFamily:"monospace"}} value={shareUrl}/>
+                      <button onClick={()=>navigator.clipboard.writeText(shareUrl).then(()=>alert("✅ 링크 복사됨!\n\n학생들에게 이 링크를 공유하세요.")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 복사</button>
+                    </div>
+                    <div style={{fontSize:".72rem",color:cv.muted,marginTop:".45rem",lineHeight:1.6}}>
+                      ⚠️ JSONBin 대시보드에서 이 Bin을 <strong>Public</strong>으로 설정해야 학생이 Key 없이 읽을 수 있습니다.
+                    </div>
+                  </div>);
+                })()}
                 <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
                   <button onClick={async()=>{if(!jbKey){alert("Secret Key를 먼저 입력하세요.");return;}try{const id=await JBIN.create(jbKey,{roster,questions,submissions,att,attNote,setkStore,teacher1,teacher2,globalPrompts,apiKeys,aiEngine,teacherPw:teacherPwServer,driveUrls,rootUrl});setJbBinId(id);LC.set("jb_binid",id);setJbStatus("ok");alert(`✅ Bin 생성 완료!\n\nBin ID: ${id}\n\n이 ID를 모든 선생님 기기의 'Bin ID' 칸에 입력하세요.`);}catch(e){alert("생성 실패: "+e.message);}}} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".84rem",padding:".5rem 1.1rem"}}>📦 Bin 생성 (처음 설정 시)</button>
                   <button onClick={syncFromServer} disabled={!jbEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:jbEnabled?1:.5}}>🔄 서버에서 불러오기</button>
