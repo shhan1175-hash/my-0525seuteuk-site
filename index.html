@@ -76,6 +76,8 @@ const SK={
   apiKeys:"shared_apiKeys_v1",
   aiEngine:"shared_aiEngine_v1",
   teacherPw:"shared_teacherPw_v1",
+  driveUrls:"shared_driveUrls_v1",
+  rootUrl:"shared_rootUrl_v1",
 };
 /* window.storage 사용 가능 여부 감지 */
 const HAS_WS=typeof window!=="undefined"&&typeof window.storage?.get==="function"&&typeof window.storage?.set==="function";
@@ -342,6 +344,16 @@ function App(){
     return()=>{if(tr)tr.removeEventListener("mouseenter",onE);if(sb)sb.removeEventListener("mouseleave",onL);};
   },[page,isFloatTab]);
   useEffect(()=>{if(FIXED_TABS.has(tab))setSideOpen(false);},[tab]);
+
+  /* ── 드라이브 자동매칭 ── */
+  const autoMatch=async()=>{
+    if(!rootUrl.trim()){alert("상위 폴더 URL을 먼저 입력하세요.");return;}
+    const base=rootUrl.trim().replace(/\/+$/,"");
+    const n={...driveUrls};
+    roster.forEach(s=>{if(!n[s.id])n[s.id]=`${base}/${encodeURIComponent(s.name)}`;});
+    setDriveUrls(n); await DB.set(SK.driveUrls,n);
+    alert("학생 이름 기준으로 폴더 URL이 자동 연결되었습니다.");
+  };
 
   /* ── 출석 ── */
   const toggleAtt=(id,p)=>{const v=(att[id]||{})[p]||"";const na={...att,[id]:{...(att[id]||{}),[p]:v==="/"?"":"/"}};setAtt(na);DB.set(SK.att,na);};
@@ -632,20 +644,37 @@ function App(){
 
             {/* ── 제출현황 ── */}
             {tab==="submissions"&&(<>
-              <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:"1.2rem",flexWrap:"wrap",gap:".6rem"}}>
-                <div style={{fontWeight:800,fontSize:"1.25rem",color:cv.ink}}>📋 제출현황</div>
-                <div style={{display:"flex",gap:".4rem",flexWrap:"wrap"}}>
-                  {[["전체 "+roster.length+"명","#f0f4ff",cv.ink2,cv.border2],["✅ "+roster.filter(s=>getStatus(s)==="complete").length+"명",cv.mintLt,cv.mint,cv.mintMd],["❌ "+roster.filter(s=>getStatus(s)==="none").length+"명",cv.roseLt,cv.rose,cv.roseMd]].map(([l,bg,col,bc])=>(<span key={l} style={pill(bg,col,bc)}>{l}</span>))}
+              {/* 구글 드라이브 상위 폴더 연동 */}
+              <div style={{display:"flex",alignItems:"center",gap:".7rem",marginBottom:"1.2rem",flexWrap:"wrap"}}>
+                <div style={{fontWeight:800,fontSize:"1.25rem",color:cv.ink,whiteSpace:"nowrap"}}>📋 제출현황</div>
+                <div style={{display:"flex",alignItems:"center",gap:".45rem",flex:1,minWidth:260}}>
+                  <span style={{fontSize:".78rem",color:cv.muted,whiteSpace:"nowrap"}}>📁 상위 폴더:</span>
+                  <input style={{...inp(),flex:1,fontSize:".81rem",padding:".42rem .75rem"}}
+                    placeholder="https://drive.google.com/drive/folders/..."
+                    value={rootUrl}
+                    onChange={e=>{setRootUrl(e.target.value);DB.set(SK.rootUrl,e.target.value);}}/>
+                  <button onClick={autoMatch}
+                    style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".78rem",padding:".42rem .9rem",whiteSpace:"nowrap"}}>🔗 자동 매칭</button>
+                </div>
+                {driveSaved&&<span style={{fontSize:".75rem",color:cv.mint,fontWeight:700}}>✓ 저장됨</span>}
+              </div>
+              <div style={{display:"flex",gap:".4rem",flexWrap:"wrap",marginBottom:"1rem",alignItems:"center"}}>
+                {[["전체 "+roster.length+"명","#f0f4ff",cv.ink2,cv.border2],["✅ "+roster.filter(s=>getStatus(s)==="complete").length+"명",cv.mintLt,cv.mint,cv.mintMd],["📝 "+roster.filter(s=>getStatus(s)==="ws").length+"명",cv.lavLt,cv.lav,cv.lavMd],["❌ "+roster.filter(s=>getStatus(s)==="none").length+"명",cv.roseLt,cv.rose,cv.roseMd]].map(([l,bg,col,bc])=>(<span key={l} style={pill(bg,col,bc)}>{l}</span>))}
+                <div style={{marginLeft:"auto",display:"flex",gap:".4rem"}}>
+                  <button onClick={()=>{const n={};roster.forEach(s=>n[s.id]=true);setDriveUrls(n);DB.set(SK.driveUrls,n);}} style={{...btn("#e8f9f0","#1a7a46"),border:"1px solid #7ad9a0",fontSize:".76rem",padding:".32rem .75rem"}}>전체 드라이브 ✓</button>
+                  <button onClick={async()=>{await DB.set(SK.driveUrls,driveUrls);setDriveSaved(true);setTimeout(()=>setDriveSaved(false),2000);}} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".76rem",padding:".32rem .75rem"}}>💾 저장</button>
                 </div>
               </div>
               <div style={{overflowX:"auto",borderRadius:11,border:`1.5px solid ${cv.border}`}}>
-                <table style={{width:"100%",borderCollapse:"collapse",fontSize:".81rem",minWidth:500}}>
+                <table style={{width:"100%",borderCollapse:"collapse",fontSize:".81rem",minWidth:580}}>
                   <thead><tr style={{background:"linear-gradient(90deg,#e8e0ff,#d4f5e8)"}}>
                     <th style={{padding:".55rem .7rem",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:34}}>번</th>
                     <th style={{padding:".55rem .7rem",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:54}}>학번</th>
                     <th style={{padding:".55rem .7rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2}}>이름</th>
                     {questions.map((_,i)=>(<th key={i} style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:74}}>활동{i+1}</th>))}
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📸 마스터</th>
+                    <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📁 드라이브</th>
+                    <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:90}}>📂 폴더</th>
                     <th style={{padding:".55rem .7rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:85}}>종합</th>
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:55}}>열람</th>
                   </tr></thead>
@@ -655,14 +684,36 @@ function App(){
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,color:cv.muted,fontSize:".76rem"}}>{s.no}</td>
                       <td style={{padding:".4rem .7rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`,fontFamily:"monospace",fontWeight:700,fontSize:".78rem"}}>{s.id}</td>
                       <td style={{padding:".4rem .7rem",borderBottom:`1px solid ${cv.border}`,fontWeight:700}}>{s.name}</td>
-                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".2rem"}}><span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span>{subm&&<button onClick={()=>{if(window.confirm("초기화?")){{const ns=submissions.map(ss=>{if(ss.stuId!==s.id)return ss;const na={...ss.answers};delete na[q.id];return{...ss,answers:na};});save(SK.submissions,ns,setSubmissions);}}}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".62rem",padding:".08rem .35rem",borderRadius:4}}>↺</button>}</div></td>);})}
+                      {questions.map((q,qi)=>{const subm=isActSubmitted(s.id,q.id);return(<td key={qi} style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
+                        <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:".2rem"}}>
+                          <span style={subm?pill(cv.lavLt,cv.lav,cv.lavMd):pill(cv.bg,cv.muted,cv.border2)}>{subm?"✓":"미"}</span>
+                          {subm&&<button onClick={()=>{if(window.confirm("초기화?")){{const ns=submissions.map(ss=>{if(ss.stuId!==s.id)return ss;const na={...ss.answers};delete na[q.id];return{...ss,answers:na};});save(SK.submissions,ns,setSubmissions);}}}} style={{...btn(cv.roseLt,cv.rose),border:`1px solid ${cv.roseMd}`,fontSize:".62rem",padding:".08rem .35rem",borderRadius:4}}>↺</button>}
+                        </div>
+                      </td>);})}
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{hasMasterPhoto(s.id)?<span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>✓</span>:<span style={pill(cv.bg,cv.muted,cv.border2)}>미</span>}</td>
+                      {/* 드라이브 체크 */}
+                      <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
+                        <div onClick={async()=>{const n={...driveUrls,[s.id]:driveUrls[s.id]?undefined:true};const cleaned=Object.fromEntries(Object.entries(n).filter(([,v])=>v));setDriveUrls(cleaned);await DB.set(SK.driveUrls,cleaned);}}
+                          style={{...pill(driveUrls[s.id]?"#e0f9ec":cv.bg,driveUrls[s.id]?"#1a7a46":cv.muted,driveUrls[s.id]?"#7ad9a0":cv.border2),cursor:"pointer",justifyContent:"center"}}>
+                          {driveUrls[s.id]?"✓":"✕"}
+                        </div>
+                      </td>
+                      {/* 폴더 URL */}
+                      <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>
+                        {typeof driveUrls[s.id]==="string"&&driveUrls[s.id].startsWith("http")
+                          ?<a href={driveUrls[s.id]} target="_blank" rel="noreferrer"
+                              style={{...pill("#e8f9f0","#1a7a46","#7ad9a0"),textDecoration:"none"}}>📂 {s.name}</a>
+                          :<button onClick={async()=>{const u=prompt(`${s.name} 구글 드라이브 폴더 URL:`);if(u){const n={...driveUrls,[s.id]:u.trim()};setDriveUrls(n);await DB.set(SK.driveUrls,n);}}}
+                              style={{...btn(cv.lavLt,cv.lav),border:`1px dashed ${cv.lavMd}`,fontSize:".73rem",padding:".2rem .5rem"}}>+ URL</button>
+                        }
+                      </td>
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}><span style={pill(sbg,stC[st][1],sbc)}>{stLabel[st]}</span></td>
                       <td style={{padding:".4rem .4rem",textAlign:"center",borderBottom:`1px solid ${cv.border}`}}>{sub?<button onClick={()=>{setSubmitted(sub);setPage("review");}} style={{...btn(cv.lavLt,cv.lav),border:`1px solid ${cv.lavMd}`,fontSize:".73rem",padding:".2rem .45rem"}}>보기</button>:<span style={{color:cv.muted}}>—</span>}</td>
                     </tr>);
                   })}</tbody>
                 </table>
               </div>
+              <div style={{marginTop:".65rem",fontSize:".74rem",color:cv.muted}}>💡 📂 폴더 열: + URL 클릭으로 개별 폴더 URL 등록 · 🔗 자동 매칭으로 일괄 연결</div>
             </>)}
 
             {/* ── 문항설정 ── */}
@@ -727,8 +778,16 @@ function App(){
                     {setkStu&&<div style={{background:stuAns?"#f2fff8":cv.bg,border:`1px solid ${stuAns?cv.mintMd:cv.border2}`,borderRadius:8,padding:".6rem .85rem",fontSize:".82rem",lineHeight:1.75,color:stuAns?cv.ink2:cv.muted,whiteSpace:"pre-wrap",minHeight:44,marginBottom:".7rem"}}>{stuAns||"(제출 없음)"}</div>}
                     <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:".6rem",marginBottom:".65rem"}}><CompCheck label="📖 국어 역량" items={KOR_COMP} sel={ext.korComp} onChange={v=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],korComp:v};return n;})}/><CompCheck label="📊 수학 역량" items={MATH_COMP} sel={ext.mathComp} onChange={v=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],mathComp:v};return n;})}/></div>
                     <div style={{display:"grid",gridTemplateColumns:teacher2.enabled?"1fr 1fr":"1fr",gap:".6rem",marginBottom:".65rem"}}>
-                      <div><div style={{fontSize:".72rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{t1Lbl}</div><textarea style={{...inp(),minHeight:56,resize:"vertical",lineHeight:1.6}} value={ext.obs1} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs1:e.target.value};return n;})}/></div>
-                      {teacher2.enabled&&<div><div style={{fontSize:".72rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{t2Lbl}</div><textarea style={{...inp(),minHeight:56,resize:"vertical",lineHeight:1.6}} value={ext.obs2} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs2:e.target.value};return n;})}/></div>}
+                      <div>
+                        <div style={{fontSize:".72rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{t1Lbl}</div>
+                        <textarea style={{...inp(),minHeight:56,resize:"vertical",lineHeight:1.6}} value={ext.obs1} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs1:e.target.value};return n;})}/>
+                      </div>
+                      {teacher2.enabled&&(
+                        <div>
+                          <div style={{fontSize:".72rem",fontWeight:700,color:cv.ink2,marginBottom:".25rem"}}>{t2Lbl}</div>
+                          <textarea style={{...inp(),minHeight:56,resize:"vertical",lineHeight:1.6}} value={ext.obs2} onChange={e=>setSetkExtras(p=>{const n=[...p];n[ai]={...n[ai],obs2:e.target.value};return n;})}/>
+                        </div>
+                      )}
                     </div>
                     <div style={{display:"flex",alignItems:"center",gap:".5rem",marginBottom:".8rem",padding:".5rem .8rem",background:cv.bg,borderRadius:8,border:`1px solid ${cv.border}`}}>
                       <span style={{fontSize:".76rem",fontWeight:700,color:cv.ink2,whiteSpace:"nowrap"}}>바이트 수:</span>
