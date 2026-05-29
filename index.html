@@ -45,21 +45,16 @@ function AG({value,onChange,placeholder,style={},minH=52}){
   return <textarea ref={r} className="ag" value={value||""} onChange={onChange} placeholder={placeholder} style={{minHeight:minH,...style}}/>;
 }
 
-/* ══════════════ Firebase Realtime Database (인증 불필요!) ══════════════ */
+/* ══════════════ Firebase Realtime Database ══════════════ */
 const FB={
-  _url(dbUrl){return dbUrl.replace(/\/+$/,"")+"/vpc.json";},
-  async load(dbUrl){
-    const res=await fetch(FB._url(dbUrl));
+  _url(u){return u.replace(/\/+$/,"")+"/vpc.json";},
+  async load(u){
+    const res=await fetch(FB._url(u));
     if(!res.ok)throw new Error(`불러오기 실패 (${res.status})`);
-    const d=await res.json();
-    return d||{};
+    return(await res.json())||{};
   },
-  async save(dbUrl,data){
-    const res=await fetch(FB._url(dbUrl),{
-      method:"PUT",
-      headers:{"Content-Type":"application/json"},
-      body:JSON.stringify(data),
-    });
+  async save(u,data){
+    const res=await fetch(FB._url(u),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(data)});
     if(!res.ok)throw new Error(`저장 실패 (${res.status})`);
     return await res.json();
   },
@@ -95,20 +90,17 @@ async function compressImage(dataUrl,maxW=600,quality=0.7){
   return new Promise(resolve=>{
     const img=new Image();
     img.onload=()=>{
-      const scale=Math.min(1,maxW/img.width);
-      const w=Math.round(img.width*scale),h=Math.round(img.height*scale);
+      const scale=Math.min(1,maxW/img.width),w=Math.round(img.width*scale),h=Math.round(img.height*scale);
       const c=document.createElement("canvas");c.width=w;c.height=h;
-      c.getContext("2d").drawImage(img,0,0,w,h);
-      resolve(c.toDataURL("image/jpeg",quality));
+      c.getContext("2d").drawImage(img,0,0,w,h);resolve(c.toDataURL("image/jpeg",quality));
     };
     img.onerror=()=>resolve(dataUrl);img.src=dataUrl;
   });
 }
 async function prepareQuestionsForSave(qs){
-  return Promise.all((qs||[]).map(async q=>({
-    ...q,poemImages:await Promise.all((q.poemImages||[]).map(async img=>({...img,dataUrl:img.dataUrl?await compressImage(img.dataUrl):""})))
-  })));
+  return Promise.all((qs||[]).map(async q=>({...q,poemImages:await Promise.all((q.poemImages||[]).map(async img=>({...img,dataUrl:img.dataUrl?await compressImage(img.dataUrl):""})))})));
 }
+/* ★ migrateQ 수정 완료 */
 function migrateQ(q){
   if(!q||typeof q!=="object")return{...DEF_Q[0],id:"q"+Date.now()};
   return{
@@ -211,7 +203,7 @@ function App(){
   const [sideOpen,setSideOpen]=useState(false);
   const sideRef=useRef(null);const triggerRef=useRef(null);
 
-  /* ── Firebase Realtime Database 설정 (API Key 불필요!) ── */
+  /* ── ★ Firebase 설정 (JSONBin 제거) ── */
   const [dbUrl,setDbUrl]=useState(()=>LC.get("fb_url",""));
   const [dbStatus,setDbStatus]=useState("");
   const dbEnabled=!!dbUrl;
@@ -231,7 +223,6 @@ function App(){
   const [rootUrl,setRootUrl]=useState("");
   const [attSaved,setAttSaved]=useState(false);
   const [driveSaved,setDriveSaved]=useState(false);
-
   const [expandedQ,setExpandedQ]=useState(null);const [savedQ,setSavedQ]=useState(false);
   const [newPw,setNewPw]=useState("");
   const [seteuk,setSeteuk]=useState(null);const [generating,setGenerating]=useState(false);
@@ -272,7 +263,7 @@ function App(){
   useEffect(()=>{
     (async()=>{
       setLoading(true);
-      /* URL ?bin=DB_URL 파라미터 → 학생 기기 자동 세팅 */
+      /* ★ URL ?bin=DB_URL → 학생 기기 자동 세팅 */
       const urlBin=new URLSearchParams(window.location.search).get("bin");
       if(urlBin){LC.set("fb_url",urlBin);setDbUrl(urlBin);}
       const bid=urlBin||LC.get("fb_url","");
@@ -282,10 +273,7 @@ function App(){
           applyData(d);
           setSetkDashStu(Array.isArray(d.roster)&&d.roster.length>0?d.roster[0].id:INIT_ROSTER[0].id);
           setDbStatus("ok");setLoading(false);return;
-        }catch(e){
-          console.warn("Firebase 로드 실패:",e.message);
-          setDbStatus("error");
-        }
+        }catch(e){console.warn("Firebase 로드 실패:",e.message);setDbStatus("error");}
       }
       applyData(localFallback());
       setSetkDashStu(LC.get("lc_roster",INIT_ROSTER)[0]?.id||INIT_ROSTER[0].id);
@@ -301,27 +289,25 @@ function App(){
     teacherPw:teacherPwServer,driveUrls,rootUrl,...overrides,
   }),[roster,questions,submissions,att,attNote,setkStore,teacher1,teacher2,globalPrompts,apiKeys,aiEngine,teacherPwServer,driveUrls,rootUrl]);
 
+  /* ★ pushToServer — Firebase 사용 */
   const pushToServer=useCallback(async(patch={})=>{
     const data={...snapshot(),...patch};
     if(data.questions)data.questions=await prepareQuestionsForSave(data.questions);
     const lcMap={roster:"lc_roster",questions:"lc_questions",submissions:"lc_submissions",att:"lc_att",attNote:"lc_attNote",setkStore:"lc_setkStore",teacher1:"lc_teacher1",teacher2:"lc_teacher2",globalPrompts:"lc_globalPrompts",apiKeys:"lc_apiKeys",aiEngine:"lc_aiEngine",driveUrls:"lc_driveUrls",rootUrl:"lc_rootUrl"};
     Object.entries(lcMap).forEach(([k,lk])=>{if(data[k]!==undefined)LC.set(lk,data[k]);});
     LC.set("lc_teacherPw",data.teacherPw||"1234");
-    if(blobEnabled){
-      try{
-        await JBLOB.save(blobId,data);
-        setSyncMsg("✓ 서버 저장됨");setTimeout(()=>setSyncMsg(""),2000);
-      }catch(e){
-        setSyncMsg("⚠ 저장 실패: "+e.message);setTimeout(()=>setSyncMsg(""),5000);throw e;
-      }
+    if(dbEnabled){
+      try{await FB.save(dbUrl,data);setSyncMsg("✓ 서버 저장됨");setTimeout(()=>setSyncMsg(""),2000);}
+      catch(e){setSyncMsg("⚠ 저장 실패: "+e.message);setTimeout(()=>setSyncMsg(""),5000);throw e;}
     }
-  },[snapshot,blobEnabled,blobId]);
+  },[snapshot,dbEnabled,dbUrl]);
 
+  /* ★ syncFromServer — Firebase 사용 */
   const syncFromServer=async()=>{
-    if(!blobEnabled){alert("Blob ID를 먼저 입력하세요.");return;}
-    setBlobStatus("syncing");setSyncMsg("서버에서 불러오는 중...");
-    try{const d=await JBLOB.load(blobId);applyData(d);setBlobStatus("ok");setSyncMsg("✓ 동기화 완료");setTimeout(()=>setSyncMsg(""),3000);}
-    catch(e){setBlobStatus("error");setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),5000);}
+    if(!dbEnabled){alert("Firebase URL을 먼저 입력하세요.");return;}
+    setDbStatus("syncing");setSyncMsg("서버에서 불러오는 중...");
+    try{const d=await FB.load(dbUrl);applyData(d);setDbStatus("ok");setSyncMsg("✓ 동기화 완료");setTimeout(()=>setSyncMsg(""),3000);}
+    catch(e){setDbStatus("error");setSyncMsg("⚠ "+e.message);setTimeout(()=>setSyncMsg(""),5000);}
   };
 
   const isFloatTab=!FIXED_TABS.has(tab);
@@ -353,7 +339,6 @@ function App(){
     const nr=roster.filter(s=>s.id!==id).map((s,i)=>({...s,no:i+1}));
     setRoster(nr);await pushToServer({roster:nr});
   };
-
   const autoMatch=async()=>{
     if(!rootUrl.trim()){alert("상위 폴더 URL을 먼저 입력하세요.");return;}
     const base=rootUrl.trim().replace(/\/+$/,""),n={...driveUrls};
@@ -362,6 +347,7 @@ function App(){
   };
 
   const isActSubmitted=(sid,qid)=>!!(submissions.find(s=>s.stuId===sid)?.answers[qid]?.text?.trim());
+  /* ★ 3단계: 문항별 사진으로 변경 */
   const hasMasterPhoto=(sid)=>questions.some(q=>!!(submissions.find(s=>s.stuId===sid)?.answers[q.id]?.questionPhoto));
   const wsAllSubmitted=(sid)=>questions.every(q=>isActSubmitted(sid,q.id));
   const getStatus=s=>{const all=wsAllSubmitted(s.id),mp=hasMasterPhoto(s.id);if(all&&mp)return"complete";if(all)return"ws";if(mp)return"ph";return"none";};
@@ -380,6 +366,7 @@ function App(){
     if(next.length===teacherPwServer.length){setTimeout(()=>{if(next===teacherPwServer){setPage("teacher");setPwInput("");}else{setPwShake(true);setTimeout(()=>{setPwShake(false);setPwInput("");},600);}},150);}
   };
 
+  /* ★ submitWS — masterPhoto 제거 */
   const submitWS=async()=>{
     const bad=questions.filter(q=>(answers[q.id]?.text||"").trim().length<20);
     if(bad.length){alert("답변 20자 이상:\n"+bad.map(q=>q.title).join(", "));return;}
@@ -394,7 +381,6 @@ function App(){
     if(!keys[field]){const k=prompt(`${aiEngine} API 키 입력`);if(!k)return null;const nk={...keys,[field]:k};setApiKeys(nk);pushToServer({apiKeys:nk});return nk;}
     return keys;
   };
-
   const generate=async()=>{
     const keys=ensureKey();if(!keys)return;
     setGenerating(true);setSeteuk(null);setGenProg(0);
@@ -409,7 +395,6 @@ function App(){
   const t2Lbl=teacher2.enabled&&teacher2.name?`${teacher2.name} 교사(${teacher2.subject||"담당"})의 관찰`:"교사 2 관찰";
   const getSetkSub=()=>submissions.find(s=>s.stuId===setkStu)||null;
   const onSetkStuChange=id=>{setSetkStu(id);setSetkPartResult({});setSetkResult(null);setRightActIdx(null);if(!id)return;const sub=submissions.find(s=>s.stuId===id);if(!sub)return;setSetkExtras(prev=>prev.map((act,i)=>({...act,content:sub.answers[questions[i]?.id]?.text||""})));};
-
   const generateActSetk=async(ai)=>{
     const keys=ensureKey();if(!keys)return;
     const ext=setkExtras[ai],q=questions[ai],stu=roster.find(s=>s.id===setkStu);
@@ -433,7 +418,6 @@ function App(){
       if(setkStu){const ns={...setkStore,[setkStu]:{...(setkStore[setkStu]||{}),final:text}};setSetkStore(ns);await pushToServer({setkStore:ns});}
     }catch(e){setSetkResult("오류: "+e.message);}setSetkGen(false);
   };
-
   const runOCR=async(qIdx,imgData,subIdx=null)=>{
     const keys={...apiKeys};if(!keys.openai){const k=prompt("OpenAI API 키(OCR)");if(!k)return;const nk={...keys,openai:k};setApiKeys(nk);pushToServer({apiKeys:nk});}
     const qid=questions[qIdx]?.id,ok=subIdx!=null?`${qid}_sub${subIdx}`:qid;
@@ -445,7 +429,6 @@ function App(){
       setOcrDone(p=>({...p,[ok]:true}));
     }catch(e){alert("OCR 오류: "+e.message);}setOcrLoading(p=>({...p,[ok]:false}));
   };
-
   const exportAttCsv=()=>{
     const hdr=["연번","학번","이름",...PERIODS.map(p=>p+"교시"),"비고"];
     const rows=roster.map(s=>[s.no,s.id,s.name,...PERIODS.map(p=>(att[s.id]||{})[p]==="/"?"결석":"출석"),attNote[s.id]||""]);
@@ -461,7 +444,6 @@ function App(){
 
   const reset=()=>{setPage("login");setStuId("");setStuName("");setStuErr("");setAnswers({});setCurQ(0);setSubmitted(null);setSeteuk(null);setTNote("");setOcrDone({});setOcrSaved({});setShowMath(false);setShowNonFic(false);setVideoOpen(false);};
   const doneCount=questions.filter(q=>(answers[q.id]?.text||"").trim().length>=20).length;
-
   const TBtn=()=>(page!=="worksheet"&&page!=="review"&&page!=="result"?<button onClick={()=>{setPwInput("");setPage("pw");}} style={{...btn(`linear-gradient(135deg,${cv.lavMd},#b8a4f0)`,cv.ink),borderRadius:20,fontSize:".75rem",padding:".35rem 1rem"}}>🏫 교사 모드</button>:null);
   const Spinner=({prog})=>(<div style={{position:"fixed",inset:0,background:"rgba(45,40,64,.6)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:300}}><div style={{...crd(),maxWidth:300,width:"88%",textAlign:"center",padding:"2rem"}}><div style={{width:42,height:42,border:`3px solid ${cv.border}`,borderTopColor:cv.lav,borderRadius:"50%",animation:"spin 1s linear infinite",margin:"0 auto 1rem"}}/><div style={{fontWeight:700,color:cv.ink,marginBottom:".5rem"}}>교세특 생성 중...</div>{prog!=null&&<div style={{height:5,background:cv.border,borderRadius:999,overflow:"hidden"}}><div style={{height:"100%",width:prog+"%",background:`linear-gradient(90deg,${cv.lavMd},${cv.mintMd})`,transition:"width .3s"}}/></div>}</div></div>);
 
@@ -536,7 +518,7 @@ function App(){
           </div>
           <div style={{display:"flex",alignItems:"center",gap:".7rem"}}>
             {syncMsg&&<span style={{fontSize:".75rem",color:"rgba(255,255,255,.9)",fontWeight:700}}>{syncMsg}</span>}
-            {blobEnabled&&<button onClick={syncFromServer} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".75rem"}}>🔄 동기화</button>}
+            {dbEnabled&&<button onClick={syncFromServer} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".75rem"}}>🔄 동기화</button>}
             <button onClick={()=>{setPage("login");setPwInput("");}} style={{...btn("rgba(255,255,255,.18)"),border:"1px solid rgba(255,255,255,.35)",borderRadius:20,padding:".28rem .85rem",fontSize:".76rem"}}>로그아웃</button>
           </div>
         </div>
@@ -556,8 +538,8 @@ function App(){
               <div style={{...crd({background:dbEnabled?(dbStatus==="ok"?cv.mintLt:dbStatus==="error"?cv.roseLt:cv.lavLt):cv.peachLt,border:`1.5px solid ${dbEnabled?(dbStatus==="ok"?cv.mintMd:dbStatus==="error"?cv.roseMd:cv.lavMd):cv.peachMd}`}),marginBottom:"1.2rem"}}>
                 <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",flexWrap:"wrap",gap:".5rem"}}>
                   <div>
-                    <div style={{fontWeight:700,fontSize:".9rem",color:cv.ink,marginBottom:".2rem"}}>{dbEnabled?(dbStatus==="ok"?"✅ 서버 연결됨":dbStatus==="error"?"⚠️ 서버 연결 오류":"🔄 연결 중..."):"⚠️ 서버 미연결 — 환경설정에서 Firebase 설정 필요"}</div>
-                    <div style={{fontSize:".78rem",color:cv.muted}}>{dbEnabled?"Firebase 서버 동기화 활성":"환경설정 → Firebase 설정 후 학생 공유 링크 복사"}</div>
+                    <div style={{fontWeight:700,fontSize:".9rem",color:cv.ink,marginBottom:".2rem"}}>{dbEnabled?(dbStatus==="ok"?"✅ Firebase 연결됨":dbStatus==="error"?"⚠️ 연결 오류":"🔄 연결 중..."):"⚠️ 서버 미연결 — 환경설정에서 Firebase 설정 필요"}</div>
+                    <div style={{fontSize:".78rem",color:cv.muted}}>{dbEnabled?"Firebase 동기화 활성":"환경설정 → Firebase URL 입력 → 연결 테스트"}</div>
                   </div>
                   {dbEnabled&&<button onClick={syncFromServer} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".8rem",padding:".4rem .9rem"}}>🔄 동기화</button>}
                   {!dbEnabled&&<button onClick={()=>setTab("settings")} style={{...btn(`linear-gradient(135deg,#c05c1a,#e67e22)`),fontSize:".8rem",padding:".4rem .9rem"}}>⚙️ 지금 설정하기</button>}
@@ -644,7 +626,7 @@ function App(){
                     <th style={{padding:".55rem .7rem",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:54}}>학번</th>
                     <th style={{padding:".55rem .7rem",textAlign:"left",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2}}>이름</th>
                     {questions.map((_,i)=>(<th key={i} style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:74}}>활동{i+1}</th>))}
-                    <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📸 마스터</th>
+                    <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:70}}>📸 사진</th>
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:90}}>📂 폴더</th>
                     <th style={{padding:".55rem .7rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:85}}>종합</th>
                     <th style={{padding:".55rem .4rem",textAlign:"center",borderBottom:`2px solid ${cv.border}`,fontWeight:700,color:cv.ink2,width:55}}>열람</th>
@@ -821,56 +803,39 @@ function App(){
             {tab==="settings"&&(<>
               <div style={{fontWeight:800,fontSize:"1.25rem",marginBottom:"1.2rem",color:cv.ink}}>⚙️ 환경설정</div>
 
-              {/* ★ Firebase Realtime Database 설정 */}
+              {/* ★ Firebase 서버 설정 */}
               <div style={{...crd({background:dbEnabled?cv.mintLt:cv.peachLt,border:`2px solid ${dbEnabled?cv.mintMd:cv.peachMd}`}),marginBottom:"1.2rem"}}>
                 <div style={{fontWeight:800,marginBottom:".6rem",fontSize:"1rem",color:cv.ink}}>🔥 Firebase 서버 설정 <span style={{...pill(cv.mintLt,cv.mint,cv.mintMd),fontSize:".7rem",marginLeft:".4rem"}}>무료 · API Key 불필요</span></div>
-
-                {/* 설정 안내 */}
                 <div style={{fontSize:".83rem",lineHeight:1.9,marginBottom:"1rem",background:"rgba(255,255,255,.9)",padding:".85rem 1rem",borderRadius:9,border:`1px solid ${cv.mintMd}`}}>
-                  <strong>⏱ 5분이면 완료됩니다:</strong><br/>
-                  1. <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" style={{color:cv.lav,fontWeight:700}}>console.firebase.google.com</a> 접속 (Google 계정으로 로그인)<br/>
-                  2. <strong>프로젝트 만들기</strong> → 이름 입력 → 계속 → 프로젝트 만들기<br/>
-                  3. 왼쪽 메뉴 <strong>빌드 → Realtime Database</strong> → <strong>데이터베이스 만들기</strong><br/>
-                  4. 위치: 기본값 → <strong>테스트 모드로 시작</strong> 선택 → 사용 설정<br/>
-                  5. 표시되는 URL 복사 (예: <code style={{background:"#f0f4ff",padding:".1rem .3rem",borderRadius:4,fontSize:".78rem"}}>https://my-app-rtdb.firebaseio.com</code>)<br/>
-                  6. 아래 칸에 붙여넣기 → <strong>연결 테스트</strong> 클릭
+                  <strong>⏱ 5분이면 완료:</strong><br/>
+                  1. <a href="https://console.firebase.google.com" target="_blank" rel="noreferrer" style={{color:cv.lav,fontWeight:700}}>console.firebase.google.com</a> → Google 계정 로그인<br/>
+                  2. <strong>프로젝트 만들기</strong> → 이름 입력 → 완료<br/>
+                  3. <strong>빌드 → Realtime Database → 데이터베이스 만들기</strong><br/>
+                  4. <strong>테스트 모드로 시작</strong> 선택 → 사용 설정<br/>
+                  5. 표시되는 URL 복사 → 아래 붙여넣기 → <strong>연결 테스트</strong>
                 </div>
-
                 <div style={{marginBottom:"1rem"}}>
                   <div style={{fontSize:".8rem",fontWeight:700,color:cv.ink2,marginBottom:".3rem"}}>Firebase Database URL</div>
                   <input style={{...inp(),fontFamily:"monospace",fontSize:".85rem"}} placeholder="https://my-project-default-rtdb.firebaseio.com" value={dbUrl} onChange={e=>{setDbUrl(e.target.value.trim());LC.set("fb_url",e.target.value.trim());}}/>
                 </div>
-
-                {/* 학생 공유 링크 */}
                 {dbUrl&&(<div style={{marginBottom:"1rem",padding:".85rem 1rem",background:"#e8f9f0",border:`2px solid ${cv.mintMd}`,borderRadius:10}}>
-                  <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".4rem"}}>📱 학생 공유 링크 (이것만 공유하면 끝!)</div>
+                  <div style={{fontWeight:800,fontSize:".9rem",color:cv.mint,marginBottom:".4rem"}}>📱 학생 공유 링크</div>
                   <div style={{display:"flex",gap:".5rem",alignItems:"center"}}>
                     <input readOnly style={{...inp(),flex:1,fontSize:".72rem",background:"#fff",fontFamily:"monospace"}} value={`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`}/>
-                    <button onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`).then(()=>alert("✅ 링크 복사됨!\n\n카카오톡이나 구글 클래스룸으로 학생들에게 공유하세요.\n\n학생이 이 링크로 접속하면:\n✓ 선생님 문항 자동 표시\n✓ 제출한 답변 선생님께 전달")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 복사</button>
+                    <button onClick={()=>navigator.clipboard.writeText(`${window.location.origin}${window.location.pathname}?bin=${encodeURIComponent(dbUrl)}`).then(()=>alert("✅ 링크 복사!\n\n학생들에게 공유하세요.\n이 링크로 접속하면 문항 자동 로드 + 답변 서버 저장")).catch(()=>{})} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".82rem",padding:".6rem 1.1rem",flexShrink:0,whiteSpace:"nowrap"}}>📋 복사</button>
                   </div>
                 </div>)}
-
                 <div style={{display:"flex",gap:".6rem",flexWrap:"wrap"}}>
                   <button onClick={async()=>{
                     if(!dbUrl){alert("Firebase URL을 먼저 입력하세요.");return;}
                     setSyncMsg("연결 테스트 중...");
-                    try{
-                      await FB.save(dbUrl,{...snapshot(),_test:true});
-                      setDbStatus("ok");setSyncMsg("✓ 연결 성공!");setTimeout(()=>setSyncMsg(""),3000);
-                      alert("✅ Firebase 연결 성공!\n\n이제 위의 [📋 복사] 버튼으로\n학생들에게 링크를 공유하세요!");
-                    }catch(e){
-                      setDbStatus("error");setSyncMsg("");
-                      alert("❌ 연결 실패: "+e.message+"\n\nFirebase URL을 다시 확인하세요.\n(테스트 모드로 설정했는지 확인)");
-                    }
+                    try{await FB.save(dbUrl,snapshot());setDbStatus("ok");setSyncMsg("✓ 연결 성공!");setTimeout(()=>setSyncMsg(""),3000);alert("✅ Firebase 연결 성공!\n\n위의 [📋 복사] 버튼으로 학생들에게 링크를 공유하세요!");}
+                    catch(e){setDbStatus("error");setSyncMsg("");alert("❌ 연결 실패: "+e.message+"\n\nFirebase URL 확인 및 테스트 모드 설정 여부를 확인하세요.");}
                   }} style={{...btn(`linear-gradient(135deg,${cv.mint},#27ae60)`),fontSize:".88rem",padding:".6rem 1.2rem",fontWeight:800}}>🔗 연결 테스트</button>
                   <button onClick={syncFromServer} disabled={!dbEnabled} style={{...btn(`linear-gradient(135deg,${cv.lav},#9b59b6)`),fontSize:".84rem",padding:".5rem 1.1rem",opacity:dbEnabled?1:.5}}>🔄 서버에서 불러오기</button>
-                  <button onClick={async()=>{
-                    if(!dbEnabled){alert("Firebase URL을 먼저 입력하세요.");return;}
-                    if(!window.confirm("현재 데이터를 서버에 강제 저장할까요?"))return;
-                    await pushToServer();alert("✅ 서버 저장 완료");
-                  }} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,fontSize:".84rem",padding:".5rem 1.1rem"}}>💾 서버에 저장하기</button>
+                  <button onClick={async()=>{if(!dbEnabled){alert("Firebase URL을 먼저 입력하세요.");return;}if(!window.confirm("현재 데이터를 서버에 저장할까요?"))return;await pushToServer();alert("✅ 저장 완료");}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,fontSize:".84rem",padding:".5rem 1.1rem"}}>💾 서버에 저장하기</button>
                 </div>
-                {dbEnabled&&dbStatus==="ok"&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ Firebase 연결됨 — 문항 변경 시 [💾 문항 저장] 버튼을 눌러 학생 화면에 반영하세요</div>}
+                {dbEnabled&&dbStatus==="ok"&&<div style={{marginTop:".6rem",fontSize:".76rem",color:cv.mint,fontWeight:700}}>✅ Firebase 연결됨</div>}
               </div>
 
               <div style={{...crd(),marginBottom:".9rem"}}>
@@ -913,8 +878,8 @@ function App(){
 
   if(page==="worksheet"){
     const q=questions[curQ];if(!q)return null;
+    /* ★ 3단계: ans.questionPhoto 사용 */
     const ans=answers[q.id]||{text:"",imgData:null,imgText:"",poemSel:"",subImgs:{},subImgTexts:{},questionPhoto:null};
-    const masterPhoto=answers._masterPhoto||null;
     const cnt=(ans.text||"").length;
     const updAns=(f,v)=>setAnswers(p=>({...p,[q.id]:{...(p[q.id]||{}),[f]:v}}));
     const hasPoemImages=(q.poemImages||[]).length>0;
@@ -948,7 +913,7 @@ function App(){
             {questions.map((qq,i)=>{const done=(answers[qq.id]?.text||"").trim().length>=20,active=curQ===i;return<button key={qq.id} onClick={()=>{setCurQ(i);setVideoOpen(false);}} style={{padding:".34rem .8rem",fontSize:".77rem",border:`1.5px solid ${active?cv.lav:done?cv.mint:cv.border2}`,background:active?cv.lav:done?cv.mintLt:"#fff",color:active?"#fff":done?cv.mint:cv.muted,borderRadius:20,cursor:"pointer",fontWeight:700}}>{i+1}. {qq.title.length>8?qq.title.slice(0,8)+"…":qq.title}{done?" ✓":""}</button>;})}
           </div>
           <div style={{display:"flex",gap:".4rem",marginBottom:"1rem",flexWrap:"wrap"}}>
-            {[["1단계","기본문항 답변",cv.lav,cv.lavLt],["2단계","추가문항 사진",cv.peachDk,cv.peachLt],["3단계","활동지 전체 사진",cv.mint,cv.mintLt]].map(([step,label,col,bg])=>(<div key={step} style={{display:"flex",alignItems:"center",gap:".3rem",padding:".25rem .65rem",borderRadius:18,background:bg,border:`1px solid ${col}33`}}><span style={{fontWeight:800,fontSize:".72rem",color:col}}>{step}</span><span style={{fontSize:".72rem",color:col,fontWeight:600}}>{label}</span></div>))}
+            {[["1단계","기본문항 답변",cv.lav,cv.lavLt],["2단계","추가문항 사진",cv.peachDk,cv.peachLt],["3단계","이 문항 페이지 사진",cv.mint,cv.mintLt]].map(([step,label,col,bg])=>(<div key={step} style={{display:"flex",alignItems:"center",gap:".3rem",padding:".25rem .65rem",borderRadius:18,background:bg,border:`1px solid ${col}33`}}><span style={{fontWeight:800,fontSize:".72rem",color:col}}>{step}</span><span style={{fontSize:".72rem",color:col,fontWeight:600}}>{label}</span></div>))}
           </div>
           <div style={{...crd(),marginBottom:"1rem",animation:"fadeUp .25s ease"}}>
             <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:".55rem",flexWrap:"wrap",gap:".5rem"}}>
@@ -993,6 +958,7 @@ function App(){
                 })}
               </div>
             </>)}
+            {/* ★ 3단계: 문항별 페이지 사진 */}
             <div style={{background:cv.mintLt,border:`1.5px solid ${cv.mintMd}`,borderRadius:10,padding:".85rem .95rem",marginBottom:"1rem"}}>
               <div style={{display:"flex",alignItems:"center",gap:".45rem",marginBottom:".5rem"}}><span style={pill(cv.mintLt,cv.mint,cv.mintMd)}>3단계</span><span style={{fontWeight:800,fontSize:".88rem",color:cv.mint}}>이 문항 페이지 전체 사진</span></div>
               <div style={{fontSize:".8rem",color:cv.ink2,marginBottom:".65rem",lineHeight:1.6}}>현재 문항이 작성된 <strong>이 페이지 전체</strong>를 촬영하여 업로드해주세요.</div>
@@ -1002,8 +968,11 @@ function App(){
           </div>
           <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",paddingTop:"1.1rem",borderTop:`1.5px solid ${cv.border}`}}>
             <button disabled={curQ===0} onClick={()=>{setCurQ(p=>p-1);setVideoOpen(false);}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem",opacity:curQ===0?.35:1}}>← 이전</button>
-            {!isLast?<button onClick={()=>{setCurQ(p=>p+1);setVideoOpen(false);}} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem"}}>다음 →</button>
-            :<button onClick={submitWS} style={{...btn("linear-gradient(135deg,#c05c1a,#e67e22)"),borderRadius:20,padding:".52rem 1.5rem",fontSize:".92rem"}}>활동지 제출하기 →</button>}
+            <div style={{display:"flex",flexDirection:"column",alignItems:"flex-end",gap:".3rem"}}>
+              {(needsSave||subNeedsSave)&&<span style={{fontSize:".73rem",color:cv.peachDk,fontWeight:700}}>⚠️ 저장 후 이동 가능</span>}
+              {!isLast?<button onClick={()=>{setCurQ(p=>p+1);setVideoOpen(false);}} disabled={needsSave||subNeedsSave} style={{...btn("#fff",cv.ink2),border:`1.5px solid ${cv.border2}`,borderRadius:20,padding:".5rem 1.1rem",opacity:(needsSave||subNeedsSave)?.35:1}}>다음 →</button>
+              :<button onClick={submitWS} disabled={needsSave||subNeedsSave} style={{...btn("linear-gradient(135deg,#c05c1a,#e67e22)"),borderRadius:20,padding:".52rem 1.5rem",fontSize:".92rem",opacity:(needsSave||subNeedsSave)?.35:1}}>활동지 제출하기 →</button>}
+            </div>
           </div>
         </div>
       </div>
